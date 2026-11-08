@@ -1,0 +1,261 @@
+Changes
+-------
+1.13
+Migrated database connections to mysqli for PHP 8.4 compatibility.
+Parameterized request-driven queries and validated dynamic SQL identifiers.
+Updated fresh-install schema and added upgrade112to113.php for MySQL 8/InnoDB/utf8mb4.
+Moved administrator contact, email signature, chat link, logfile, default language, and auto-prediction settings into the database-backed configuration screen.
+
+1.11
+Security fix to stop predictions being made after the game
+  ReleaseNotes.php
+  systemvars.php
+  updatemypredictions.php
+
+1.11
+Implemented the patches required from 1.10.
+  sortfunctions.php
+  lang.dutch.php
+  sendpassword.php
+
+1.10
+Removed the file upgradeto10.php as this is not needed.
+Removed file forgotpassword.html
+Removed file forgot.html
+Added upgrade file
+  upgrade109to110.php
+Added more log messages
+Added password encryption
+  systemvars.php
+  configvalues.php
+  security.php
+  createuser.php
+  encryptionclass.php
+  sendpassword.php
+  changepassword.php
+  ...many other files
+Added ability to upgrade user to admin (and back again)
+  showusers.php
+  modifyuseradmin.php
+Fixed variable missing errors
+  createmsg.php
+  showmsg.php
+  msgfunctions.php
+  deletemsgs.php
+Updated language files for duplicate variables
+  all language files.
+Suppressed error message
+  sendmsg.php
+
+1.09
+Split sortfunctions.php into smaller files
+  sortfunctions.php
+  datefunctions.php
+  statsfunctions.php
+Added 12/24Hr option
+  upgrade108.to109.php
+  systemvars.php
+  configvars.php
+  datefunctions.php
+Added ability to change session save path. This was in response to a problem on a yahoo hosted site.
+  systemvars.php
+  sessiondata.php
+Made the adding of a second league in the same database clearer
+  adminsetupmenu.php
+  admincreatetables.php
+  adminshowtimeinfo.php
+  adminconfig.php
+  adminconfigleague.php
+Fixed install for using 24 hour clock
+  dbasefunctions.php
+Added upload icon option
+  systemvars.php
+  configvalues.php
+  dbasefunctions.php
+  showmyprofile.php
+  uploadicon.php
+Fixed javascript error
+  menus.php
+Suppressed warnings
+  sessiondata.php
+Use 24 hour clock for fixtures
+  datefunctions.php
+Removed unused variable.	
+  adminenterfixture.php
+  adminentermultfixtures.php
+  adminenterresult.php
+  sortfunctions.php
+  showpredictionsformatch.php
+Added changes for php 4.2 where register globals is off by default
+  deletefixture.php
+Disabled ISAUTO for now
+  configvalues.php
+Added array index checks
+  sortfunctions.php
+  showusers.php
+Fixed SID problem in updating fixtures
+  sessiondata.php
+  sortfunctions.php
+Fixed problem with scoring if the result contained null
+  sortfunctions.php
+Added points display with the users predictions
+  gamesstatsclass.php
+  sortfunctions.php
+Added extra "Predicti" button
+  sortfunctions.php
+Fixed bug updating config data
+  setconfigparams.php
+Replaced deprecated calls
+  createdbase.php
+Fixed import bug
+  adminsetupmenu.php
+  importdbase.php
+  admincreateadminuser.php
+Increased the number of icons displayde
+  userselecticon.php
+Fixed header text when looking at predictions.
+  sortfunctions.php
+
+1.08
+Fixed import query
+  importdbase.php
+Cosmetic changes 
+  enteroutstandingresults.php
+Language addition
+  sortfunctions.php
+Added $username as global
+  sessiondata.php
+Fixed variable in lang files
+  All lang files.
+Reciver in show all messages now displayed.
+  msgfunctions.php
+Added some more user entry validity checks for fixtures.
+  addfixture.php
+  modifyfixture.php
+Fixed Error Notify to make sure the log is not reused and fixed logging to not
+try to log if logfile cannot be opened.
+  error.php
+  logfunctions.php
+Show no prediction for user as ' '
+  sortfunctions.php
+Show game time on screen
+  getgametime.php
+  sortfunctions.php
+  menus.php
+Timezone improvements with multiple fixture use
+  adminentermultfixtures.php
+  adminshowtimeinfo.php
+Getleaderboard undefined fixed
+  getleaderboard.php
+
+1.07
+Fixed initial config values width
+ createtables.php.
+Fixed display of missing text
+  sortfunctions.php
+Added admin option to enter all outstanding results
+  sortfunctions.php
+  enteroutstandingresults.php
+  adminenteroutstandingresults.php
+Added admin option for entering multiple fixtures.
+  adminentermultfixtures.php
+Added Upgrade106to107.php
+Changed config files to allow auto prediction
+  configvalues.php
+  systemvars.php
+  dbasefunctions.php
+Added facility to enter multiple fixtures
+  adminentermultfixtures.php
+  addmultfixtures.php
+  systemvars.php
+  dbasefunctions.php
+  configvalues.php
+Added ability to hide user predictions
+  systemvars.php
+  dbasefunctions.php
+  configvalues.php
+  sortfunctions.php
+Fixed reverse predictions display
+  sortfunctions.php
+Decreased parameter display width
+  adminconfigleague.php
+Fixed Error display
+  sessiondata.php
+Fixed email sending bug
+  sendemail.php
+Added more lid features
+  almost every file.php
+Fixed some SID issues in admin scripts
+Added fix for users using ' in team names and user names. Should also work for / and ".
+  showusers.php
+  deleteuser.php
+  manyothers...php
+Made password inputs in profiles 'password' input type
+  showmyprofile.php
+
+1.06
+Most files changed including language files. Added multiple character set support (now including chinese).
+Fixed email bug that caused no emails to be sent if one of the emails in the list was invalid.
+Added more characters to the language files to cover missed translations.
+Added DBase backup option (not complete)
+Added Tables empty option
+Added database/tables delete option
+Fixed security issue in install files
+Added version to config data to help future upgrades
+Changed config data table to take wider parameters (96 characters) and also allow read only parameters.
+
+1.05
+Added example code to allow DHTML to display leaderboard in HTML page. In essence this allows the leaders to be displayed on a page other than PHP pages.
+Added another German translation.
+Added fix for displaying 0 standings.
+
+1.04
+This is a simple fix release.
+Added fix for forgot password.
+  sendpassword.php
+Added new languages:
+  Faroese
+  Turkish
+  Danish2
+
+1.03
+Multiple file changes for comments.
+Added some more admin checks.
+Fixed bug when adding fixtures on unix server.
+Moved Months to language files.
+Added config var to allow users with 0 predictions to be excluded from standings table. Added option to default config values.
+Added some more language files, thanks to all contributors:
+  German
+  Indonesian
+  Malay
+  Danish
+
+1.02
+Improved install scripts to include upgrade
+Added option in config to disable the messaging functions from the config screen.
+Move players with 0 predictions to end of table
+  sortfunctions.php
+  schema change for standings position
+Added default prediction information
+  schema change for default prediction in user table
+Changed most files as includes have moved.
+Removed unused functions.
+  
+1.01
+Fixed case names for links:
+  postresult.php
+  showmyprofile.php
+  changeuserpassword.php
+Fixed release notes.
+Added icons for messaging.
+  img/emailiconnew18x12.gif
+  img/emailiconold18x12.gif
+  menus.php
+  sortfunctions.php
+  lang files $Send_Msg
+  msgfunctions.php
+Added sort order to the predictions int he pane.  
+Added
+  lang/lang.scots.php
+
+1.0 Released 12th March 2002

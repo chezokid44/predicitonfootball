@@ -1,0 +1,10 @@
+Bugs:
+
+If you have problems installing or using the Prediction League scripts then please send the following:
+
+ o Script Version (e.g. 1.04)
+ o URL script is installed
+ o Copy of systemvars.php (you can remove your user and password)
+ o Browser used and version
+
+Attach to an email to bugs@predictionfootball.com

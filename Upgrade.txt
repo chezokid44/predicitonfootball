@@ -1,0 +1,91 @@
+Upgrade Instructions for Prediction League.
+-------------------------------------------
+
+To Upgrade 1.12 to 1.13 (PHP 8.4 / MySQL 8)
+--------------------------------------------
+1. Back up the database and application files.
+2. Install the new files and update systemvars.php with the existing database settings.
+3. Run upgrade112to113.php once to convert the configured tables to InnoDB/utf8mb4, update timestamp definitions, and seed newly database-backed site settings without overwriting configured values.
+4. Confirm the upgrade completed, then remove upgrade112to113.php from the web server.
+5. Ensure the PHP mysqli extension and a MySQL 8 database are available.
+
+The fresh-install screen creates new tables with the MySQL 8 schema. Existing data is not changed by that screen.
+
+If you are upgrading through more than one step within the 1.0 release path you will need to run each 
+subsequent upgrade step.
+For example if you are upgrading from 1.05 to 1.07 you will need to perform each intermediate step:
+  upgrade105to106.php
+  upgrade106to107.php
+
+To Upgrade 1.10 to 1.11
+-----------------------
+1.Install the new files into a new directory e.g. predictionleague111.
+2.Modify the systemvars.php and common.css files to match your current settings.
+3.Rename the old directory e.g. predictionleague110
+4.Rename the new directory to the old directory name e.g. predictionleague .
+5.Open the file upgrate110to111.php on your server. 
+6.Delete any files that are named upgrade*.php e.g. upgrade106to107.php
+
+To Upgrade 1.09 to 1.10
+-----------------------
+Beware the value of PAsswordEncryption in this upgrade. Password encryption now defaults to 
+true. If you enable password encryption in systemvars.php then the users will need to use
+the forgot password feature to get their new passwords.
+1.Install the new files into a new directory e.g. predictionleague110.
+2.Modify the systemvars.php and common.css files to match your current settings.
+3.Rename the old directory e.g. predictionleague109
+4.Rename the new directory to the old directory name e.g. predictionleague .
+5.Open the file upgrate109to110.php on your server. 
+6.Delete any files that are named upgrade*.php e.g. upgrade106to107.php
+
+To Upgrade 1.08 to 1.09
+-----------------------
+1.Install the new files into a new directory e.g. predictionleague109.
+2.Modify the systemvars.php and common.css files to match your current settings.
+3.Rename the old directory e.g. predictionleague107
+4.Rename the new directory to the old directory name e.g. predictionleague .
+5.Open the file upgrate108to109.php on your server. 
+6.Delete any files that are named upgrade*.php e.g. upgrade106to107.php
+
+To Upgrade 1.07 to 1.08
+-----------------------
+There are no dtabase changes for this release so the upgrade is simply a case of replacing the files.
+1.Install the new files into a new directory e.g. predictionleague108.
+2.Modify the systemvars.php and common.css files to match your current settings.
+3.Rename the old directory e.g. predictionleague107
+4.Rename the new directory to the old directory name e.g. predictionleague .
+5.Open the file upgrate107to108.php on your server. 
+5.Delete any files that are named upgrade*.php e.g. upgrade106to107.php
+
+To Upgrade 1.06 to 1.07
+-----------------------
+Open the file upgrate106to107.php on your server. 
+Delete the file upgrade106to107.php when the upgrade is complete.
+
+To Upgrade 1.05 to 1.06
+-----------------------
+Open the file upgrate105to106.php on your server. 
+Delete the file upgrade105to106.php when the upgrade is complete.
+
+
+Importing 0.48, 0.49 data into 1.07.
+------------------------------------
+1. Backup all your data, this is a very risky operation. You alone are responsible for
+   the integrity of your data. All user passwords will be reset to <username>10, where 
+   <username> is their username.
+2. Install the new files in a new directory e.g. PredictionLeague10.
+3. Modify the systemvars.php file in the new directory to match your dbase
+   and password settings. The old and new tables will use the same database.
+4. Be aware that the table names have changed. For the upgrade to be successful
+   the previous version of the table name and the new version must be using different
+   table names.
+5. Open from the newdirectory adminphptest.php in your browser.
+6. Follow the install steps including the import step
+7. Delete the php files beginning with upgrade*.php (where * means anything) 
+
+The following steps are optional
+8. Move the old directory to a new directory name e.g. mv PredictionLeague PredictionLeagueOld
+9. Move the new directory to its permanent home mv PredictionLeague10 PredictionLeague.
+10. If your links point to PredictionIndex.php then make a sym link ln -s index.php PredictionIndex.php
+
+Good luck

@@ -1,0 +1,1 @@
+<?php ShowUserMessages($User->userid); ?>

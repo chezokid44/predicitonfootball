@@ -1,0 +1,765 @@
+A:link { 
+  font-family: tahoma, verdana, arial; 
+  font-size: 10pt; 
+  font-style: normal; 
+  line-height: normal; 
+  font-weight: normal; 
+  font-variant: normal; 
+  color: red; 
+  text-decoration: none 
+}
+A:visited { 
+  font-family: tahoma, verdana, arial; 
+  font-size: 10pt; 
+  font-style: normal; 
+  line-height: normal; 
+  font-weight: normal; 
+  font-variant: normal; 
+  color: red; text-decoration: none 
+}
+A:hover { 
+  font-family: tahoma, verdana, arial; 
+  font-size: 10pt; 
+  font-style: normal; 
+  line-height: normal; 
+  font-weight: normal; 
+  font-variant: normal; 
+  color: white; 
+  text-decoration: none 
+}
+A.VERSION:visited {
+  font-family: tahoma, verdana, arial; 
+  font-size: 8pt; 
+  font-style: normal; 
+  line-height: normal; 
+  font-weight: normal; 
+  font-variant: normal; 
+  color: red; 
+  text-decoration: none 
+}
+A.VERSION:link { 
+  font-family: tahoma, verdana, arial; 
+  font-size: 8pt; 
+  font-style: normal; 
+  line-height: normal; 
+  font-weight: normal; 
+  font-variant: normal; 
+  color: red; 
+  text-decoration: none 
+}
+A.VERSION:hover { 
+  font-family: tahoma, verdana, arial; 
+  font-size: 8pt; 
+  font-style: normal; 
+  line-height: normal; 
+  font-weight: normal; 
+  font-variant: normal; 
+  color: white; 
+  text-decoration: none 
+}
+A.PRED:visited {
+  font-family: tahoma, verdana, arial; 
+  font-size: 8pt; 
+  font-style: normal; 
+  line-height: normal; 
+  font-weight: normal; 
+  font-variant: normal; 
+  color: red; 
+  text-decoration: none 
+}
+A.PRED:link { 
+  font-family: tahoma, verdana, arial; 
+  font-size: 8pt; 
+  font-style: normal; 
+  line-height: normal; 
+  font-weight: normal; 
+  font-variant: normal; 
+  color: red; 
+  text-decoration: none 
+}
+A.PRED:hover { 
+  font-family: tahoma, verdana, arial; 
+  font-size: 8pt; 
+  font-style: normal; 
+  line-height: normal; 
+  font-weight: normal; 
+  font-variant: normal; 
+  color: white; 
+  text-decoration: none 
+}
+
+body.MAIN {
+  background-color: white;
+  text-align: center;
+}
+font.TBLHEAD {
+  font-size: 10pt; 
+  color: white; 
+  font-family: tahoma; 
+  font-weight: bold; 
+  text-decoration: none
+}
+font.TBLROW {
+  font-size: 10pt; 
+  color: NAVY; 
+  font-family: tahoma; 
+  text-decoration: none
+}
+font.VERSION {
+  font-size: 8pt; 
+  color: NAVY; 
+  font-family: tahoma; 
+  text-decoration: none
+}
+font.LEADER {
+  font-size: 10pt; 
+  color: NAVY; 
+  font-family: tahoma; 
+  text-decoration: none; 
+  background-color: GOLD
+}
+font.PRDROW {
+  font-size: 10pt;
+  color: NAVY; 
+  font-family: tahoma; 
+  font-weight: normal; 
+  text-decoration: none; 
+  background-color: #addce3
+}
+font.LOGINHD {
+  font-size: 8pt; 
+  color: white; 
+  font-family: tahoma; 
+  font-weight: bold; 
+  text-decoration: none; 
+  background-color: navy
+}
+font.LOGINRW {
+  font-size: 8pt; 
+  color: NAVY; 
+  font-family: tahoma; 
+  text-decoration: none; 
+  background-color: #addce3
+}
+
+font.HELPTEXT {
+  font-size: 10pt; 
+  color: NAVY; 
+  font-family: tahoma; 
+  text-decoration: none; 
+  background-color: WHITE}
+font.HELPROW {
+  font-size: 10pt; 
+  color: NAVY; 
+  font-family: tahoma; 
+  text-decoration: none}
+font.HELPHEAD {
+  font-size: 10pt; 
+  color: WHITE; 
+  font-family: tahoma; 
+  text-decoration: BOLD
+}
+font.PREDHEAD {
+  font-size: 8pt; 
+  color: red; 
+  font-family: tahoma; 
+  text-decoration: BOLD
+}
+
+table.LEFT {
+  width: 140px; 
+  background-color: #ffffff;
+  cell-spacing: 0px;
+  padding: 0px;
+}
+table.CENTER {
+  border: groove black 0px;
+  background-color: #ffffff;
+  cell-spacing: 0px;
+  padding: 0px;
+}
+table.RIGHT {
+  border: groove black 0px;
+  width: 140px; 
+  background-color: #ffffff;
+}
+table.MAINTB {
+  border: groove black 0px;
+  background-color: transparent;
+  cell-spacing: 0px;
+  padding: 0px;
+}
+table.HELPTB {
+  background-color: transparent;
+  width: 450px; 
+  cell-spacing: 0px;
+  border: inset red 0px;
+  padding: 0px;
+}
+table.MSGTB {
+  background-color: transparent;
+  width: 450px; 
+  cell-spacing: 0px;
+  border: inset red 0px;
+  padding: 0px;
+}
+table.STANDTB {
+  background-color: transparent;
+  width: 450px; 
+  cell-spacing: 0px;
+  border: inset red 0px;
+  padding: 0px;
+}
+table.PREDTB {
+  background-color: transparent;
+  width: 140; 
+  cell-spacing: 0px;
+  border: inset red 0px;
+  padding: 0px;
+}
+table.MENUTB {
+  background-color: transparent;
+  width: 140px; 
+  cell-spacing: 0px;
+  border: inset red 0px;
+  padding: 0px;
+}
+table.LOGINTB {
+  background-color: transparent;
+  width: 140px; 
+  cell-spacing: 0px;
+  border: groove red 0px;
+  padding: 0px;
+}
+td.TBLHEAD {
+  background-color: NAVY
+}
+td.LEADER {background-color: GOLD}
+td.TBLROW {
+  background-color: #addce3;
+}
+td.LOGINHD {background-color: NAVY}
+td.LOGINRW {background-color: #addce3}
+td.LEFTCOL {
+  background-color: transparent;
+  vertical-align: top;
+}
+td.CENTERCOL {
+  vertical-align: top; 
+  text-align: left;
+}
+td.RIGHTCOL {
+  width: 130px; 
+  vertical-align: top;
+}
+td.TBLPOS {background-color: NAVY; width: 40px; text-align: center}
+td.TBLUSER {background-color: NAVY; width: 180px; text-align: center}
+td.TBLPLAYED {background-color: NAVY; width: 40px; text-align: center}
+td.TBLWON {background-color: NAVY; width: 40px; text-align: center}
+td.TBLDRAWN {background-color: NAVY; width: 40px; text-align: center}
+td.TBLLOST {background-color: NAVY; width: 40px; text-align: center}
+td.TBLFOR {background-color: NAVY; width: 40px; text-align: center}
+td.TBLAGAINST {background-color: NAVY; width: 40px; text-align: center}
+td.TBLGD {background-color: NAVY; width: 40px; text-align: center}
+td.TBLPTS {background-color: NAVY; width: 40px; text-align: center}
+
+/* Shared matchday interface overrides */
+:root {
+  color-scheme: light;
+  --page: #f2f6f0;
+  --surface: #ffffff;
+  --surface-muted: #e8f0e9;
+  --ink: #1d2b26;
+  --muted: #64736c;
+  --green: #165c49;
+  --green-dark: #104637;
+  --coral: #c9573e;
+  --gold: #f2d879;
+  --line: #d7e1d8;
+  --shadow: 0 10px 28px rgba(22, 53, 41, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body.MAIN {
+  min-height: 100vh;
+  margin: 0;
+  padding: 20px clamp(12px, 2.4vw, 36px);
+  color: var(--ink);
+  background-color: var(--page);
+  background-image: repeating-linear-gradient(135deg, rgba(22, 92, 73, 0.025) 0 1px, transparent 1px 14px);
+  text-align: left;
+  font: 15px/1.5 "Trebuchet MS", "Gill Sans", sans-serif;
+}
+
+body.MAIN > table.MAINTB {
+  width: min(1480px, 100%);
+  margin: 0 auto;
+  border: 0;
+  border-spacing: 12px;
+  table-layout: auto;
+}
+
+body.MAIN > table.MAINTB > tbody > tr > td.LEFTCOL {
+  width: 210px;
+  min-width: 180px;
+}
+
+body.MAIN > table.MAINTB > tbody > tr > td.CENTERCOL {
+  min-width: 0;
+  padding: 4px;
+}
+
+body.MAIN > table.MAINTB > tbody > tr > td.RIGHTCOL {
+  width: 250px;
+  min-width: 200px;
+  padding: 4px;
+}
+
+body.MAIN > table.MAINTB > tbody > tr > td[colspan] {
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+body.MAIN > table.MAINTB > tbody > tr > td.TBLHEAD[colspan] {
+  border: 0;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  font-size: 1.05rem;
+}
+
+font.TBLHEAD,
+font.LOGINHD,
+font.HELPHEAD {
+  color: #fff;
+  font-family: "Trebuchet MS", "Gill Sans", sans-serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+font.TBLROW,
+font.LOGINRW,
+font.HELPTEXT,
+font.HELPROW,
+font.VERSION,
+font.LEADER,
+font.PRDROW {
+  color: var(--ink);
+  font-family: "Trebuchet MS", "Gill Sans", sans-serif;
+  font-size: 0.92rem;
+}
+
+a:link,
+a:visited,
+a.PRED:link,
+a.PRED:visited {
+  color: var(--green);
+  font: inherit;
+  text-decoration: none;
+  transition: color 140ms ease, text-decoration-color 140ms ease;
+}
+
+a:hover,
+a.PRED:hover {
+  color: var(--coral);
+  text-decoration: underline;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(201, 87, 62, 0.5);
+  outline-offset: 2px;
+}
+
+table.MENUTB,
+table.LOGINTB,
+table.CENTER,
+table.HELPTB,
+table.MSGTB,
+table.STANDTB,
+table.PREDTB {
+  width: 100%;
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-spacing: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+table.STANDTB,
+table.MSGTB,
+table.HELPTB {
+  table-layout: auto;
+}
+
+table.MENUTB td,
+table.LOGINTB td,
+table.CENTER td,
+table.HELPTB td,
+table.MSGTB td,
+table.STANDTB td,
+table.PREDTB td {
+  padding: 9px 11px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+td.TBLHEAD,
+td.LOGINHD,
+td.HELPHEAD {
+  background: var(--green);
+  color: #fff;
+}
+
+td.TBLROW,
+td.LOGINRW,
+td.HELPTEXT,
+td.HELPROW {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+td.LEADER {
+  background: var(--gold);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+td.PRDROW {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+
+table.STANDTB tr:hover td.TBLROW,
+table.MSGTB tr:hover td.TBLROW {
+  background: #f4f8f3;
+}
+
+input:not([type="hidden"]),
+select,
+textarea {
+  max-width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid #bdcbc0;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  min-height: auto;
+  accent-color: var(--green);
+}
+
+input[type="submit"],
+input[type="button"],
+button {
+  min-height: 40px;
+  padding: 8px 15px;
+  border: 1px solid var(--green);
+  border-radius: 5px;
+  background: var(--green);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+
+input[type="submit"]:hover,
+input[type="button"]:hover,
+button:hover {
+  background: var(--green-dark);
+  transform: translateY(-1px);
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 900px) {
+  body.MAIN {
+    padding: 12px;
+  }
+
+  body.MAIN > table.MAINTB {
+    border-spacing: 7px;
+  }
+
+  body.MAIN > table.MAINTB > tbody > tr > td.LEFTCOL,
+  body.MAIN > table.MAINTB > tbody > tr > td.RIGHTCOL {
+    width: 190px;
+    min-width: 160px;
+  }
+
+  table.STANDTB,
+  table.MSGTB,
+  table.HELPTB {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  body.MAIN > table.MAINTB,
+  body.MAIN > table.MAINTB > tbody,
+  body.MAIN > table.MAINTB > tbody > tr,
+  body.MAIN > table.MAINTB > tbody > tr > td {
+    display: block;
+    width: 100% !important;
+  }
+
+  body.MAIN > table.MAINTB {
+    border-spacing: 0;
+  }
+
+  body.MAIN > table.MAINTB > tbody > tr > td {
+    min-width: 0 !important;
+    padding: 8px 0;
+  }
+
+  body.MAIN > table.MAINTB > tbody > tr > td[colspan] {
+    padding: 12px;
+  }
+
+  table.STANDTB,
+  table.MSGTB,
+  table.HELPTB {
+    display: table;
+    width: 100%;
+    min-width: 560px;
+  }
+
+  body.MAIN > table.MAINTB > tbody > tr:has(> td.LEFTCOL) > td {
+    margin-bottom: 8px;
+  }
+}
+
+.league-header,
+.league-page,
+.custom-banner {
+  width: min(1480px, 100%);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.league-header {
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 4px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.league-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.league-mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--coral);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.league-brand h1 {
+  margin: 0;
+  color: var(--green-dark);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+}
+
+.league-id {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.custom-banner {
+  padding-top: 12px;
+}
+
+.custom-banner img {
+  max-width: 100%;
+  height: auto;
+}
+
+.league-page {
+  padding-top: 12px;
+}
+
+.page-heading {
+  margin: 0 0 14px;
+  color: var(--green-dark);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+}
+
+.standalone-page {
+  max-width: 1040px;
+  margin-top: 18px;
+  padding: clamp(16px, 3vw, 28px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.notice {
+  margin: 0 0 12px;
+  padding: 11px 14px;
+  border: 1px solid #e7b5a8;
+  border-left: 4px solid var(--coral);
+  border-radius: 5px;
+  background: #fff2ed;
+  color: #782f20;
+}
+
+.matchday-strip {
+  margin-bottom: 16px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  background: var(--green-dark);
+  box-shadow: var(--shadow);
+  color: #fff;
+  font-size: 1rem;
+}
+
+.matchday-strip a:link,
+.matchday-strip a:visited {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.league-grid {
+  display: grid;
+  grid-template-columns: minmax(185px, 220px) minmax(0, 1fr) minmax(200px, 255px);
+  align-items: start;
+  gap: 16px;
+}
+
+.league-sidebar,
+.standings-region,
+.stats-region {
+  min-width: 0;
+}
+
+.standings-region table.STANDTB,
+.stats-region table.PREDTB {
+  width: 100%;
+}
+
+.standings-region input[type="number"][data-prediction-match] {
+  width: 5.2rem;
+  min-height: 36px;
+  padding: 6px;
+  text-align: center;
+}
+
+.prediction-status {
+  min-height: 1.5em;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+  gap: 10px;
+}
+
+.icon-choice {
+  display: grid;
+  min-height: 88px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.icon-choice img {
+  max-width: 64px;
+  max-height: 64px;
+  object-fit: contain;
+}
+
+.release-notes,
+.log-output {
+  max-width: 100%;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f7faf6;
+  color: var(--ink);
+  font: 0.9rem/1.5 Consolas, "Courier New", monospace;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 1050px) {
+  .league-grid {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  }
+
+  .stats-region {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 760px) {
+  .league-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .league-brand h1 {
+    font-size: 1.3rem;
+  }
+
+  .league-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .league-sidebar,
+  .standings-region,
+  .stats-region {
+    grid-column: 1;
+  }
+
+  .league-sidebar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    align-items: start;
+    gap: 12px;
+  }
+}
