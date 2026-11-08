@@ -28,7 +28,7 @@ $Menu = 'Dewislen';
 
 $Prediction_Table = 'Tabl Dyfalu';
 $Fixtures_Results = 'Gemau / Canlyniadau';
-$My_Predictions = 'Yr hyn rwy'n ei ragweld';
+$My_Predictions = 'Yr hyn rwy\'n ei ragweld';
 $My_Profile = 'Fy mhroffil';
 $Logout = 'Logio allan';
 
@@ -47,7 +47,7 @@ $View_Log = 'Edrych ar y Log';
  // Create new user variables
  /////////////////////////////////////////////////////////
 
-$Cookie_read_test_error = 'Methu â darllen y 'cookie' prawf wrth greu defnyddiwr newydd';
+$Cookie_read_test_error = 'Methu â darllen y \'cookie\' prawf wrth greu defnyddiwr newydd';
 $Create_New_User = 'Creu defnyddiwr newydd';
 $User_ID_Required = 'Angen ID defnyddiwr';
 $User_ID_too_long = 'ID Defnyddiwr yn rhy hir.  Rhaid iddo fod yn llai na 32 o lythrennau.';
@@ -61,7 +61,7 @@ $User_Info = 'Gwybodaeth Defnyddiwr';
 $User_ID = 'ID Defnyddiwr';
 $User_Name = 'Enw defnyddiwr';
 $Select_user_ID = 'Dewiswch ID defnyddiwr';
-$Password_length = 'Bydd yn rhaid i'r cyfrinair fod o leiaf 5 lythyren o hyd.';
+$Password_length = 'Bydd yn rhaid i\'r cyfrinair fod o leiaf 5 lythyren o hyd.';
 $Repeat_password = 'Ailnodwch eich cyfrinair.';
 $Email_Address_txt = 'Cyfeiriad Ebost';
 $Enter_valid_email_address = 'Nodwch eich cyfeiriad ebost dilys.';
@@ -74,7 +74,7 @@ $Create = 'Creu';
 $Unable_to_register_txt = "Methu â chofrestru Newidyn Defnyddiwr ar gyfer $username : $User";
 $Unable_to_register_3_attempts_txt = "Methu â chofrestru Newidyn Defnyddiwr wrth geisio creu $username Wedi methu ar ôl rhoi 3 cynnig arni : $User";
 $Successfully_registered = 'Cofrestrwyd yn llwyddiannus '.$username.' wrth gael ei greu';
-$Username_already_exists = 'Y mae'r enw defnyddiwr yma'n bod eisoes, a fyddech cystal â dewis un arall';
+$Username_already_exists = 'Y mae\'r enw defnyddiwr yma\'n bod eisoes, a fyddech cystal â dewis un arall';
 $One_user_per_email = 'Caniateir un defnyddiwr yn unig ($email) ar gyfer un cyfeiriad ebost.';
 $Username_required = 'Mae angen enw defnyddiwr arnoch, a fyddech cystal â dewis enw';
 $Password_required = 'Mae angen cyfrinair arnoch, a fyddech cystal â dewis cyfrinair';
@@ -110,21 +110,21 @@ $Creating_a_new_user_txt = '          Er mwyn cymryd rhan yn y Cynghrair Dyfalu 
           <br> <br>
           Dewiswch ID Defnyddiwr er mwyn i chi fedru gweld eich hun yn y Cynghrair Dyfalu. Gall hwn fod yn unrhyw beth yr hoffech chi ei ddefnyddio cyn belled nad oes defnyddiwr yn ei ddefnyddio. 
           <br> <br>
-          Nodwch eich cyfrinair (ddwy waith). Y mae hyn i sicrhau na all unrhyw un arall newid yr hyn rydych chi'n dyfalu y bydd y canlyniadau.
+          Nodwch eich cyfrinair (ddwy waith). Y mae hyn i sicrhau na all unrhyw un arall newid yr hyn rydych chi\'n dyfalu y bydd y canlyniadau.
           <br> <br>
-          <b>Rhaid i chi</b> nodi cyfeiriad ebost dilys er mwyn ymuno â'r Cynghrair Dyfalu. Defnyddir yr ebost yma i anfon eich cyfrinair atoch petaech chi'n ei anghofio.';
+          <b>Rhaid i chi</b> nodi cyfeiriad ebost dilys er mwyn ymuno â\'r Cynghrair Dyfalu. Defnyddir yr ebost yma i anfon eich cyfrinair atoch petaech chi\'n ei anghofio.';
 
 $Scoring_txt = 'Sgorio';
 
 $Scoring_txt_txt = '          Rhoddir pwyntiau fel a ganlyn:
           <ul>
-          <li>'.$corrScore.' Pwyntiau am sgôr cywir. h.y. rydych chi'n dyfalu y bydd y canlyniad yn 3-1 ac y mae'r canlyniad yn 3-1.
-          <li>'.$corrResult.' Pwynt am ganlyniad cywir. Rydych chi'n rhagweld 1-1, ac y mae'r sgôr yn 2-2.
+          <li>'.$corrScore.' Pwyntiau am sgôr cywir. h.y. rydych chi\'n dyfalu y bydd y canlyniad yn 3-1 ac y mae\'r canlyniad yn 3-1.
+          <li>'.$corrResult.' Pwynt am ganlyniad cywir. Rydych chi\'n rhagweld 1-1, ac y mae\'r sgôr yn 2-2.
           </ul>
           Gwahaniaeth gôl
           <ul>
-          <li>Ar gyfer y nifer cywir o goliau fesul tîm rydych chi'n eu sgorio, rydych chi'n derbyn y nifer hynny o +goliau . e.e. os bu i chi'n dyfalu y caiff 2 gôl ei sgorio ac y mae'r tim yn sgorio 2 gôl, rydych felly'n cael +2 gôl.
-          <li>Ar gyfer y nifer anghywir o goliau rydych chi'n dyfalu fesul tîm,  rydych chi'n colli'r gwahaniaeth yn nifer y goliau e.e. os bu i chi'n dyfalu y caiff 3 gôl eu sgorio ac y mae'r tîm yn sgorio 2, rydych chi'n cael -1 gol.
+          <li>Ar gyfer y nifer cywir o goliau fesul tîm rydych chi\'n eu sgorio, rydych chi\'n derbyn y nifer hynny o +goliau . e.e. os bu i chi\'n dyfalu y caiff 2 gôl ei sgorio ac y mae\'r tim yn sgorio 2 gôl, rydych felly\'n cael +2 gôl.
+          <li>Ar gyfer y nifer anghywir o goliau rydych chi\'n dyfalu fesul tîm,  rydych chi\'n colli\'r gwahaniaeth yn nifer y goliau e.e. os bu i chi\'n dyfalu y caiff 3 gôl eu sgorio ac y mae\'r tîm yn sgorio 2, rydych chi\'n cael -1 gol.
           </ul>';
 
 // Version 1.0 Additions
@@ -150,8 +150,8 @@ $Remove_All_Deleted = "Gwaredu holl negeseuon a ddilëwyd";
 $View_All_Messages = "Edrych ar yr holl negeseuon";
 $Status_Col = "Statws";
 
-$Config_League = 'Ffurfio'r Cynghrair';
-$Predictions = 'Yr hyn sy'n cael ei ddyfalu';
+$Config_League = 'Ffurfio\'r Cynghrair';
+$Predictions = 'Yr hyn sy\'n cael ei ddyfalu';
 $Predict= 'Dyfalu';
 $Next_Match = "Gêm nesaf ";
 $Prediction_League_Standings = 'Sefyllfa o fewn y Cynghrair Dyfalu';

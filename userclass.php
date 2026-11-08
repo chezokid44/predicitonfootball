@@ -41,7 +41,21 @@ class User {
   // If the user has auto predict enabled
   var $auto;
 
-  // Contructor for the user class.
+  // Constructor for the user class. PHP 8 no longer treats a method
+  // named after the class as the constructor, so __construct is used
+  // and the old User() method is kept for backwards compatibility.
+  function __construct() {
+    $this->User();
+  }
+
+  // The language files embed $User in strings, e.g. "...: $User".
+  // PHP 8 throws a fatal error when an object without __toString()
+  // is used as a string, so return the username.
+  function __toString(): string {
+    return (string)$this->username;
+  }
+
+  // Initialise the user with default values.
   function User() {
     $this->userid = "";
     $this->username = "";
