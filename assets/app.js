@@ -1280,7 +1280,7 @@
     const waiting = started.filter((f) => !f.result).length;
     const elsewhere = allStarted.filter((f) => !f.result).length - waiting;
     const ppCount = all.filter((f) => f.postponed).length;
-    let html = `<p class="lede">${waiting ? `${esc(plural(waiting, 'match', 'matches'))} here need a result.` : 'Every match shown has a result.'}
+    let html = `<p class="lede">${waiting ? `${esc(plural(waiting, 'match', 'matches'))} here ${waiting === 1 ? 'needs' : 'need'} a result.` : 'Every match shown has a result.'}
       The table updates as soon as you save. Clear both scores to remove a result. Type <strong>P</strong> (or press P) for a match that was postponed.</p>
       ${adminFilterBar(filter, { show: true })}
       ${elsewhere ? `<p class="muted tight">${esc(plural(elsewhere, 'other match', 'other matches'))} outside this season or competition ${elsewhere === 1 ? 'needs' : 'need'} a result.</p>` : ''}

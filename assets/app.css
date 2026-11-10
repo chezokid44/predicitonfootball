@@ -257,14 +257,15 @@ span.box.result { border-color: var(--ink); background: var(--ink); color: var(-
 form.stack { display: grid; gap: 16px; max-width: 26rem; }
 label { display: grid; gap: 4px; font-weight: 600; }
 label .hint { font-weight: 400; color: var(--ink-soft); font-size: 0.93rem; }
-input[type=text], input[type=search], input[type=email], input[type=password], input[type=url],
+/* Form fields fill their label's width. Score boxes (.box) have their own size and are left out. */
+input[type=text]:not(.box), input[type=search], input[type=email], input[type=password], input[type=url],
 input[type=number]:not(.box), input[type=datetime-local], input[type=date], select {
   font: inherit; color: var(--ink);
   background: var(--surface);
   border: 1.5px solid var(--ink-soft);
   border-radius: 0;
   padding: 9px 10px;
-  width: auto;
+  width: 100%;
 }
 input:focus-visible, select:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; border-color: var(--ink); }
 .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; }
