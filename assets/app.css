@@ -556,7 +556,7 @@ td .auto-tag { margin: 0 0 0 6px; }
 
 .table-switch { gap: 4px 18px; margin-top: 0; }
 .table-switch a { font-size: 1.05rem; white-space: nowrap; }
-.table-switch a.private::before { content: "◆ "; color: var(--coupon); font-size: 0.75em; vertical-align: 0.15em; }
+.table-switch a.private::before { content: "\25C6  "; color: var(--coupon); font-size: 0.75em; vertical-align: 0.15em; }
 .table-switch a.more { margin-left: auto; color: var(--coupon); }
 
 .league-cards { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
