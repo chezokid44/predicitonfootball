@@ -388,6 +388,10 @@ function route_admin_results(): array {
   foreach ($items as $item) {
     $m = get_match((int)($item['id'] ?? 0));
     $label = clean_text($m['hometeam']) . ' v ' . clean_text($m['awayteam']);
+    if (is_p_score($item['home'] ?? null) || is_p_score($item['away'] ?? null)) {
+      $clean[] = [(int)$m['matchid'], 'P', 'P', $label, $m];
+      continue;
+    }
     try {
       $home = score_in($item['home'] ?? null);
       $away = score_in($item['away'] ?? null);
@@ -399,16 +403,24 @@ function route_admin_results(): array {
     if ($home !== null && is_postponed((int)$m['matchid'])) fail(422, "$label is postponed. Give it its new kick-off time first.");
     $clean[] = [(int)$m['matchid'], $home, $away, $label];
   }
+  postponed_map();  // create the table before the transaction
   $pdo = db();
   $pdo->beginTransaction();
-  foreach ($clean as [$id, $home, $away]) {
+  $pp = 0;
+  foreach ($clean as $c) {
+    [$id, $home, $away] = $c;
+    if ($home === 'P') {
+      postpone_from_results($c[4]);
+      $pp++;
+      continue;
+    }
     q('UPDATE ' . t('matches') . ' SET homescore = ?, awayscore = ? WHERE lid = ? AND matchid = ?', [$home, $away, lid(), $id]);
   }
   $pdo->commit();
   save_standings(compute_standings());
   log_event('result', mb_substr('Saved ' . count($clean) . ' results: ' . implode('; ', array_map(
-    fn($c) => $c[3] . ' ' . ($c[1] === null ? 'cleared' : "$c[1]-$c[2]"), $clean)), 0, 255));
-  return ['saved' => count($clean)];
+    fn($c) => $c[3] . ' ' . ($c[1] === 'P' ? 'postponed' : ($c[1] === null ? 'cleared' : "$c[1]-$c[2]")), $clean)), 0, 255));
+  return ['saved' => count($clean) - $pp, 'postponed' => $pp];
 }
 
 // ---------------------------------------------------------------------
@@ -966,7 +978,7 @@ function route_admin_postpone(): array {
 /** "2 - 1", "2-1", "2:1" -> [2, 1]; empty -> null; anything else -> false. */
 function csv_score(string $v) {
   $v = trim($v);
-  if (preg_match('/^(p\s*[-:–]\s*p|pp|p\/p|postponed|pst|ppd)$/iu', $v)) return 'postponed';
+  if (preg_match('/^(p|p\s*[-:–]\s*p|pp|p\/p|postponed|pst|ppd)$/iu', $v)) return 'postponed';
   if ($v === '' || $v === '-' || strcasecmp($v, 'v') === 0 || strcasecmp($v, 'tbc') === 0) return null;
   if (preg_match('/^(\d{1,2})\s*[-:–]\s*(\d{1,2})$/u', $v, $m)) return [(int)$m[1], (int)$m[2]];
   return false;

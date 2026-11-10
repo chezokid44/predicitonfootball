@@ -503,6 +503,12 @@ function route_admin_result(): array {
   $b = body();
   $id = (int)($b['id'] ?? 0);
   $m = get_match($id);
+  if (is_p_score($b['home'] ?? null) || is_p_score($b['away'] ?? null)) {
+    postpone_from_results($m);
+    save_standings(compute_standings());
+    log_event('fixture_edit', 'Postponed ' . clean_text($m['hometeam']) . ' v ' . clean_text($m['awayteam']) . ' (P entered as the result)');
+    return ['fixture' => match_out(get_match($id)), 'postponed' => true];
+  }
   $home = score_in($b['home'] ?? null);
   $away = score_in($b['away'] ?? null);
   if (($home === null) !== ($away === null)) {

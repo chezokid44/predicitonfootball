@@ -1281,20 +1281,22 @@
     const elsewhere = allStarted.filter((f) => !f.result).length - waiting;
     const ppCount = all.filter((f) => f.postponed).length;
     let html = `<p class="lede">${waiting ? `${esc(plural(waiting, 'match', 'matches'))} here need a result.` : 'Every match shown has a result.'}
-      The table updates as soon as you save. Clear both scores to remove a result.</p>
+      The table updates as soon as you save. Clear both scores to remove a result. Type <strong>P</strong> (or press P) for a match that was postponed.</p>
       ${adminFilterBar(filter, { show: true })}
       ${elsewhere ? `<p class="muted tight">${esc(plural(elsewhere, 'other match', 'other matches'))} outside this season or competition ${elsewhere === 1 ? 'needs' : 'need'} a result.</p>` : ''}
       ${ppCount ? `<p class="muted tight">${esc(plural(ppCount, 'postponed match', 'postponed matches'))} ${ppCount === 1 ? 'isn\'t' : 'aren\'t'} listed. <a href="#/admin/fixtures">Give ${ppCount === 1 ? 'it its' : 'them their'} new date</a> first.</p>` : ''}
       ${started.length ? '' : '<p class="muted">No matches that have kicked off match these choices.</p>'}<ul class="fixtures">`;
     for (const f of started) {
-      const box = (side) => `<input class="box${f.result ? ' filled' : ''}" type="number" inputmode="numeric" min="0" max="99"
-        data-side="${side}" value="${f.result ? f.result[side] : ''}" aria-label="${esc(side === 'home' ? f.home_team : f.away_team)} goals">`;
+      // Text boxes so P (postponed) can be typed as well as a score.
+      const box = (side) => `<input class="box${f.result ? ' filled' : ''}" type="text" maxlength="2" autocomplete="off" spellcheck="false"
+        data-side="${side}" value="${f.result ? f.result[side] : ''}" aria-label="${esc(side === 'home' ? f.home_team : f.away_team)} goals, or P if postponed">`;
       html += `<li class="fixture" data-id="${f.id}">
         <span class="time">${esc(fmtShort(f.kickoff).split(',')[0])}${compTag(f.competition)}</span>
         <span class="team home">${teamName(f, 'home')}</span>
         <span class="score">${box('home')}<span class="dash" aria-hidden="true">–</span>${box('away')}</span>
         <span class="team away">${teamName(f, 'away')}</span>
-        <span class="status"><button class="btn small" type="button" data-save>${f.result ? 'Update' : 'Save result'}</button></span>
+        <span class="status"><button class="btn small" type="button" data-save>${f.result ? 'Update' : 'Save result'}</button>
+          <button class="btn small quiet pp-btn" type="button" data-pp title="Mark as postponed">P</button></span>
       </li>`;
     }
     html += `</ul><div class="savebar"><button class="btn" type="button" id="save-all">Save all results</button>
@@ -1307,6 +1309,15 @@
       `${li.querySelector('[data-side=home]').value}-${li.querySelector('[data-side=away]').value}` !== original[li.dataset.id]);
     main.querySelector('ul.fixtures').addEventListener('input', (e) => {
       if (!e.target.classList.contains('box')) return;
+      // Only digits, or P: typing P in one box fills both.
+      const v = e.target.value.trim();
+      if (/^p$/i.test(v)) {
+        e.target.closest('li').querySelectorAll('.box').forEach((b) => { b.value = 'P'; b.classList.add('filled', 'pp'); });
+      } else {
+        e.target.value = v.replace(/\D/g, '').slice(0, 2);
+        const li = e.target.closest('li');
+        if ([...li.querySelectorAll('.box')].some((b) => b.value === 'P')) li.querySelectorAll('.box').forEach((b) => { if (b !== e.target) b.value = ''; b.classList.remove('pp'); });
+      }
       e.target.classList.toggle('filled', e.target.value !== '');
       const n = changedRows().length;
       document.getElementById('results-msg').textContent = n ? `${plural(n, 'result')} changed, not saved yet.` : 'No unsaved changes.';
@@ -1318,7 +1329,7 @@
         home: li.querySelector('[data-side=home]').value, away: li.querySelector('[data-side=away]').value }));
       try {
         const res = await submitting(e.currentTarget, () => api('admin.results', { method: 'POST', body: { results } }));
-        toast(`Saved ${plural(res.saved, 'result')}. Table updated.`);
+        toast([res.saved ? `Saved ${plural(res.saved, 'result')}` : '', res.postponed ? `marked ${plural(res.postponed, 'match', 'matches')} postponed` : ''].filter(Boolean).join(' and ') + '. Table updated.');
         adminResults();
       } catch (err) { toast(err.message, true); }
     });
@@ -1328,9 +1339,16 @@
       const away = li.querySelector('[data-side=away]').value;
       try {
         await submitting(btn, () => api('admin.result', { method: 'POST', body: { id: Number(li.dataset.id), home, away } }));
-        toast(home === '' ? 'Result cleared. Table updated.' : `Result saved: ${home}–${away}. Table updated.`);
+        toast(home.toUpperCase() === 'P' ? 'Marked postponed. Give it a new date in Fixtures when it\'s rearranged.'
+          : home === '' ? 'Result cleared. Table updated.' : `Result saved: ${home}–${away}. Table updated.`);
         adminResults();
       } catch (err) { toast(err.message, true); }
+    }));
+    main.querySelectorAll('[data-pp]').forEach((btn) => btn.addEventListener('click', () => {
+      const li = btn.closest('[data-id]');
+      li.querySelectorAll('.box').forEach((b) => { b.value = 'P'; b.classList.add('filled', 'pp'); });
+      li.querySelector('.box').dispatchEvent(new Event('input', { bubbles: true }));
+      li.querySelector('[data-save]').focus();
     }));
   }
 

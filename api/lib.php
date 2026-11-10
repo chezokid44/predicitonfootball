@@ -169,6 +169,20 @@ function score_in($v): ?int {
   return (int)$v;
 }
 
+/** Did the admin type P (postponed) in a result box? */
+function is_p_score($v): bool {
+  return is_string($v) && strtoupper(trim($v)) === 'P';
+}
+
+/** Postpone a match from the results page: clears any result. */
+function postpone_from_results(array $m): void {
+  $id = (int)$m['matchid'];
+  if ($m['homescore'] !== null) {
+    q('UPDATE ' . t('matches') . ' SET homescore = NULL, awayscore = NULL WHERE lid = ? AND matchid = ?', [lid(), $id]);
+  }
+  if (!is_postponed($id)) set_postponed($id, '');
+}
+
 function clean_text(?string $v): string {
   // Older versions of the script stored text with addslashes().
   return stripslashes((string)$v);

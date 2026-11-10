@@ -5,6 +5,15 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.5.1 (10 November 2026)
+
+- Admin > Results: type **P** in a score box (or press the new P button on
+  the row) to mark a match postponed, including matches whose date has
+  passed. Any result is cleared, the tables are recalculated, and the match
+  moves to Admin > Fixtures > Postponed to be given its new date. Works with
+  "Save all results" too.
+- Imports also accept a single "P" in the Result column.
+
 ## v2.5.0 (10 November 2026)
 
 **Postponed fixtures.**

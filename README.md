@@ -121,8 +121,10 @@ settings carry over.
   can't be given a result and gets no automatic predictions. Players see it
   under "Postponed" with their prediction kept. "Set new date" puts it back
   on: once the kick-off time changes, predictions reopen until the new
-  deadline. "Not postponed" undoes it without changing the date. Imports
-  understand "P - P" in the Result column, and an updated file with a new
+  deadline. On Admin > Results, typing P in a score box (or pressing the P
+  button) marks a match that has already passed as postponed, clearing any
+  result. "Not postponed" undoes it without changing the date. Imports
+  understand "P" or "P - P" in the Result column, and an updated file with a new
   date rearranges the match.
 - A web installer for new servers
 

@@ -771,3 +771,5 @@ table.preview tr.st-new td:last-child { color: #1d7a46; }
 .pp-form { gap: 6px 8px; }
 .pp-form input { min-width: 12rem; }
 .edit-row .pp-hint { grid-column: 1 / -1; margin: 0; }
+.box.pp { color: #8a5a00; background: #fbe8b6; border-color: #e3c36b; }
+.pp-btn { min-width: 2rem; margin-left: 4px; }
