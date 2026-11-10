@@ -5,6 +5,23 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.1.0 (10 November 2026)
+
+**League tables.** A new "League tables" page shows the real table for each
+competition, worked out from the results entered: P, W, D, L, goals for and
+against, goal difference, points (3 for a win, 1 for a draw) and form (last 5).
+- One table per season, with the season picker; teams in a competition's team
+  list show from the start of the season.
+- Competitions are now a League (with a table) or a Cup (no table), set in
+  Admin > Competitions, with optional coloured places at the top, next and
+  bottom (e.g. Champions League, Europa League, relegation) and a key below.
+- Team badges in the table; short names on phones.
+- `[[standings PL]]` shows a compact table on any page.
+- "League tables" added to the default menu; prediction tables link to the
+  matching league table.
+- Older competition lists are upgraded automatically; backups keep the new
+  settings.
+
 ## v2.0.0 (10 November 2026)
 
 The rewrite and every feature added during its development. The stages below

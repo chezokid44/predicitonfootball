@@ -377,8 +377,8 @@
   // ------------------------------------------------------------------
 
   function renderNav(active) {
-    const builtin = { table: '#/table', leagues: '#/leagues', predictions: '#/predictions', results: '#/results', messages: '#/messages', help: '#/help' };
-    const menu = state.settings.menu || ['table', 'leagues', 'predictions', 'results', 'messages'].map((key) => ({ type: 'builtin', key, label: { table: 'Table', leagues: 'Leagues', predictions: 'Predict', results: 'Results', messages: 'Messages' }[key] }));
+    const builtin = { table: '#/table', standings: '#/standings', leagues: '#/leagues', predictions: '#/predictions', results: '#/results', messages: '#/messages', help: '#/help' };
+    const menu = state.settings.menu || ['table', 'standings', 'leagues', 'predictions', 'results', 'messages'].map((key) => ({ type: 'builtin', key, label: { table: 'Table', standings: 'League tables', leagues: 'Leagues', predictions: 'Predict', results: 'Results', messages: 'Messages' }[key] }));
     const links = [];
     for (const m of menu) {
       if (m.type === 'page') {
@@ -389,6 +389,7 @@
       if (m.key === 'messages' && !(state.user && state.settings.messaging)) continue;
       if (m.key === 'predictions' && !state.user) continue;
       if (m.key === 'leagues' && !state.user && !(state.settings.competitions || []).length) continue;
+      if (m.key === 'standings' && !tableComps().length) continue;
       links.push([m.key, builtin[m.key], m.label]);
     }
     if (state.user && state.user.is_admin) links.push(['admin', '#/admin', 'Admin']);
@@ -982,13 +983,36 @@
     }));
   }
 
+  function zoneText(z) {
+    const parts = [];
+    if (z.top) parts.push(`top ${z.top}`);
+    if (z.mid) parts.push(`next ${z.mid}`);
+    if (z.bottom) parts.push(`bottom ${z.bottom}`);
+    return parts.length ? ` (${parts.join(', ')} marked)` : '';
+  }
+  // Type and coloured places, shared by the add and edit forms.
+  function compTableFields(c) {
+    const z = c ? c.zones : { top: 0, mid: 0, bottom: 0 };
+    const cup = c && !c.has_table;
+    return `<label>Type<select name="table_type">
+        <option value="league"${cup ? '' : ' selected'}>League: show a league table</option>
+        <option value="cup"${cup ? ' selected' : ''}>Cup or tournament: no league table</option></select></label>
+      <fieldset class="zone-fields"${cup ? ' disabled' : ''}><legend>Coloured places in the league table <span class="hint">Optional. For example 4 for the Champions League places, 2 for Europa League, 3 for relegation.</span></legend>
+        <label>Top places<input type="number" name="zone_top" min="0" max="30" value="${z.top}"></label>
+        <label>Next places<input type="number" name="zone_mid" min="0" max="30" value="${z.mid}"></label>
+        <label>Bottom places<input type="number" name="zone_bottom" min="0" max="30" value="${z.bottom}"></label>
+      </fieldset>`;
+  }
+  const compTableBody = (f) => ({ table_type: f.table_type.value, zone_top: f.zone_top.value, zone_mid: f.zone_mid.value, zone_bottom: f.zone_bottom.value });
+  const bindTypeSelect = (f) => f.table_type.addEventListener('change', () => { f.querySelector('.zone-fields').disabled = f.table_type.value === 'cup'; });
+
   async function adminCompetitions() {
     const render = (d) => {
       state.settings = d.public;
       const n = d.competitions.length;
       const items = d.competitions.map((c, i) => `<li class="admin-item" data-comp="${c.id}">
           <span class="comp-tag">${esc(c.short)}</span>
-          <span class="grow"><strong>${esc(c.name)}</strong><br><span class="muted">${esc(plural(c.fixtures, 'fixture'))}</span></span>
+          <span class="grow"><strong>${esc(c.name)}</strong><br><span class="muted">${esc(plural(c.fixtures, 'fixture'))} · ${c.has_table ? `league table${zoneText(c.zones)}` : 'cup, no table'}</span></span>
           <span class="actions">
             <button class="btn small quiet" type="button" data-move="-1"${i === 0 ? ' disabled' : ''} aria-label="Move ${esc(c.name)} up">Up</button>
             <button class="btn small quiet" type="button" data-move="1"${i === n - 1 ? ' disabled' : ''} aria-label="Move ${esc(c.name)} down">Down</button>
@@ -1005,6 +1029,7 @@
           <label>Name<input type="text" name="name" maxlength="40" required placeholder="Premier League"></label>
           <label>Short name<span class="hint">Up to 8 characters, shown as a tag next to fixtures. Leave empty and we'll make one, e.g. PL.</span>
             <input type="text" name="short_name" maxlength="8" placeholder="PL"></label>
+          ${compTableFields(null)}
           <div><button class="btn" type="submit">Add competition</button></div>
         </form>`);
       const order = d.competitions.map((c) => c.id);
@@ -1024,14 +1049,16 @@
         li.innerHTML = `<form class="comp-edit">
           <label>Name<input type="text" name="name" maxlength="40" required value="${esc(c.name)}"></label>
           <label>Short name<input type="text" name="short_name" maxlength="8" value="${esc(c.short)}"></label>
+          ${compTableFields(c)}
           <span class="actions"><button class="btn small" type="submit">Save</button><button class="btn small quiet" type="button" data-cancel>Cancel</button></span></form>`;
         const f = li.querySelector('form');
         f.name.focus();
+        bindTypeSelect(f);
         f.querySelector('[data-cancel]').addEventListener('click', () => render(d));
         f.addEventListener('submit', async (e) => {
           e.preventDefault();
           try {
-            render(await submitting(f.querySelector('[type=submit]'), () => api('admin.competition', { method: 'POST', body: { id: c.id, name: f.name.value, short_name: f.short_name.value } })));
+            render(await submitting(f.querySelector('[type=submit]'), () => api('admin.competition', { method: 'POST', body: { id: c.id, name: f.name.value, short_name: f.short_name.value, ...compTableBody(f) } })));
             toast('Competition saved.');
           } catch (err) { toast(err.message, true); }
         });
@@ -1046,10 +1073,11 @@
         });
       }));
       const form = document.getElementById('comp-form');
+      bindTypeSelect(form);
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
-          render(await submitting(form.querySelector('[type=submit]'), () => api('admin.competition', { method: 'POST', body: { name: form.name.value, short_name: form.short_name.value } })));
+          render(await submitting(form.querySelector('[type=submit]'), () => api('admin.competition', { method: 'POST', body: { name: form.name.value, short_name: form.short_name.value, ...compTableBody(form) } })));
           toast('Competition added.');
           document.querySelector('#comp-form [name=name]').focus();
         } catch (err) { formError(form, err.message); }
@@ -1955,7 +1983,7 @@
     renderNav('table');
     const [data, hub] = await Promise.all([api('table', { query: { type: 'comp', id, ...seasonQuery() } }), hubData()]);
     let html = tableSwitcher(hub, `comp-${id}`) + `<div class="title-row"><h1>${esc(data.title)}</h1>${seasonPicker()}</div>
-      <p class="lede">The table for ${esc(data.title)} fixtures only, for everyone who plays it.
+      <p class="lede">The prediction table for ${esc(data.title)} fixtures only, for everyone who plays it.${tableComps().some((x) => x.id === data.competition.id) ? ` <a href="#/standings/${data.competition.id}">${esc(data.title)} league table</a>.` : ''}
       ${state.user && data.plays === false ? ` You don't play ${esc(data.title)}. <a href="#/leagues">Choose your competitions</a>.` : ''}</p>`;
     html += data.table.length ? tableHtml(data.table)
       : `<div class="notice"><p>This table fills in once the first ${esc(data.title)} match kicks off.</p></div>`;
@@ -2398,6 +2426,16 @@
         <a class="mr-match" href="#/match/${f.id}">${esc(f.home_team)} <strong>${f.result.home}–${f.result.away}</strong> ${esc(f.away_team)}</a></li>`).join('')}</ul>
         <p><a href="#/results">All results</a></p>`;
     }
+    if (kind === 'standings') {
+      const comps = tableComps();
+      const want = arg.trim().toLowerCase();
+      const c = comps.find((x) => String(x.id) === want || x.short.toLowerCase() === want || x.name.toLowerCase() === want) || (want ? null : comps[0]);
+      if (!c) return `<p class="muted">No league called "${esc(arg)}". Use a competition's short name, like [[standings PL]].</p>`;
+      const data = await cached(`teamtable-${c.id}`, () => api('teamtable', { query: { comp: c.id } }));
+      if (!data.table.length) return `<p class="muted">The ${esc(c.name)} table fills in as results are entered.</p>`;
+      return `<h3 class="widget-title">${esc(c.name)}</h3>${teamTableHtml(data.table, data.table.some((r) => r.played) ? data.competition.zones : null, { compact: true })}
+        <p><a href="#/standings/${c.id}">Full ${esc(c.name)} table</a></p>`;
+    }
     if (kind === 'join') {
       if (state.user) return '';
       return `<p class="widget-buttons"><a class="btn" href="#/login">Log in</a>${state.settings.registration_open ? ' <a class="btn quiet" href="#/register">Join the league</a>' : ''}</p>`;
@@ -2488,7 +2526,7 @@
   }
 
   const BLOCKS = [
-    ['[[table 10]]', 'League table (top 10)'], ['[[next-match]]', 'Next match'], ['[[results 5]]', 'Latest results'],
+    ['[[table 10]]', 'Prediction table (top 10)'], ['[[standings PL]]', 'A competition\'s league table'], ['[[next-match]]', 'Next match'], ['[[results 5]]', 'Latest results'],
     ['[[join]]', 'Log in / join buttons (for visitors)'], ['[[button Make your predictions|#/predictions]]', 'Button'],
   ];
 
@@ -2526,7 +2564,7 @@
             <li><code>**bold**</code>, <code>*italic*</code>, <code>[link text](https://example.com)</code> or a page on this site: <code>[the rules](#/page/rules)</code></li>
             <li>Lines starting <code>- </code> make a list, <code>1. </code> a numbered list, <code>&gt; </code> a quote, and <code>---</code> a line across</li>
             <li>A blank line starts a new paragraph</li>
-            <li>Live blocks go on a line of their own: <code>[[table 10]]</code>, <code>[[next-match]]</code>, <code>[[results 5]]</code>, <code>[[join]]</code> (log in buttons, only shown to visitors), <code>[[button Text|#/predictions]]</code></li>
+            <li>Live blocks go on a line of their own: <code>[[table 10]]</code> (prediction table), <code>[[standings PL]]</code> (a competition's league table, by short name), <code>[[next-match]]</code>, <code>[[results 5]]</code>, <code>[[join]]</code> (log in buttons, only shown to visitors), <code>[[button Text|#/predictions]]</code></li>
           </ul>
         </details>
         <fieldset class="page-options"><legend class="visually-hidden">Options</legend>
@@ -2959,6 +2997,81 @@
   }
 
   // ------------------------------------------------------------------
+  // The real league tables (teams), from the results entered
+  // ------------------------------------------------------------------
+
+  const tableComps = () => (state.settings.competitions || []).filter((c) => c.has_table);
+
+  function formChips(form) {
+    const word = { W: 'Won', D: 'Drawn', L: 'Lost' };
+    return `<span class="form-chips" aria-label="Last ${form.length}: ${form.map((f) => word[f]).join(', ')}">${form.map((f) =>
+      `<span class="chip ${f.toLowerCase()}" aria-hidden="true">${f}</span>`).join('')}</span>`;
+  }
+
+  // Places are coloured by row (1st, 2nd...), as in a printed table, even when teams are level.
+  function zoneOf(row, total, z) {
+    if (!z) return '';
+    if (z.top && row <= z.top) return 'zone-top';
+    if (z.mid && row <= z.top + z.mid) return 'zone-mid';
+    if (z.bottom && row > total - z.bottom && row > z.top + z.mid) return 'zone-bottom';
+    return '';
+  }
+
+  function teamTableHtml(rows, zones, { compact = false } = {}) {
+    const total = rows.length;
+    const head = compact
+      ? '<th scope="col" title="Played">P</th><th scope="col" title="Goal difference">GD</th><th scope="col" title="Points">Pts</th>'
+      : `<th scope="col" title="Played">P</th><th scope="col" title="Won">W</th><th scope="col" title="Drawn">D</th><th scope="col" title="Lost">L</th>
+         <th scope="col" class="wide" title="Goals for">F</th><th scope="col" class="wide" title="Goals against">A</th>
+         <th scope="col" title="Goal difference">GD</th><th scope="col" title="Points">Pts</th><th scope="col" class="form-col">Form</th>`;
+    const body = rows.map((r, i) => {
+      const z = zoneOf(i + 1, total, zones);
+      const gd = `${r.diff > 0 ? '+' : ''}${r.diff}`;
+      const cells = compact
+        ? `<td>${r.played}</td><td>${gd}</td><td class="pts">${r.points}</td>`
+        : `<td>${r.played}</td><td>${r.won}</td><td>${r.drawn}</td><td>${r.lost}</td><td class="wide">${r.for}</td><td class="wide">${r.against}</td>
+           <td>${gd}</td><td class="pts">${r.points}</td><td class="form-col">${formChips(r.form)}</td>`;
+      const crestImg = r.badge ? `<img class="crest" src="${esc(r.badge)}" alt="" width="22" height="22" loading="lazy">` : '<span class="crest" aria-hidden="true"></span>';
+      return `<tr${z ? ` class="${z}"` : ''}><td class="pos">${r.position}</td>
+        <td class="name"><span class="team-cell">${crestImg}<span class="tname">${esc(r.team)}</span><abbr class="tshort" title="${esc(r.team)}">${esc(r.short || r.team.slice(0, 3).toUpperCase())}</abbr></span></td>${cells}</tr>`;
+    }).join('');
+    return `<div class="table-wrap"><table class="league teams${compact ? ' compact' : ''}">
+      <thead><tr><th scope="col"><span class="visually-hidden">Position</span></th><th scope="col" class="name">Team</th>${head}</tr></thead>
+      <tbody>${body}</tbody></table></div>`;
+  }
+
+  function zoneLegend(z) {
+    const items = [];
+    if (z.top) items.push(`<span class="legend-item"><span class="swatch zone-top"></span>Top ${z.top}</span>`);
+    if (z.mid) items.push(`<span class="legend-item"><span class="swatch zone-mid"></span>Next ${z.mid}</span>`);
+    if (z.bottom) items.push(`<span class="legend-item"><span class="swatch zone-bottom"></span>Bottom ${z.bottom}</span>`);
+    return items.length ? `<p class="zone-legend muted">${items.join('')}</p>` : '';
+  }
+
+  async function viewStandings(arg) {
+    renderNav('standings');
+    const data = await api('teamtable', { query: { comp: arg || '', ...seasonQuery() } });
+    if (!data.competition) {
+      setPage(`<h1>League tables</h1><div class="notice"><p>There are no league competitions yet.${state.user && state.user.is_admin
+        ? ' Add one in <a href="#/admin/competitions">Admin > Competitions</a> and set its type to League.' : ''}</p></div>`);
+      return;
+    }
+    const c = data.competition;
+    const tabs = data.competitions.length > 1 ? `<nav class="tabs table-switch" aria-label="Competitions">${data.competitions.map((x) =>
+      `<a href="#/standings/${x.id}"${x.id === c.id ? ' aria-current="page"' : ''}>${esc(x.name)}</a>`).join('')}</nav>` : '';
+    const played = data.table.some((r) => r.played);
+    let html = `${tabs}<div class="title-row"><h1>${esc(c.name)}</h1>${seasonPicker()}</div>
+      <p class="lede">The ${esc(c.name)} table${data.season ? ` for ${esc(data.season.name)}` : ''}, from the results entered on this site. 3 points for a win, 1 for a draw.
+        <a href="#/table/${c.id}">Prediction table</a></p>`;
+    if (!data.table.length) {
+      html += `<div class="notice"><p>No results yet${data.season ? ` in ${esc(data.season.name)}` : ''}. The table fills in as results are entered.</p></div>`;
+    } else {
+      html += teamTableHtml(data.table, played ? c.zones : null) + (played ? zoneLegend(c.zones) : '');
+    }
+    setPage(html);
+  }
+
+  // ------------------------------------------------------------------
   // Router
   // ------------------------------------------------------------------
 
@@ -2974,6 +3087,7 @@
         case '': if (state.settings.home_page) await viewPage(state.settings.home_page, true); else await viewTable(); break;
         case 'table': if (arg) await viewCompTable(arg); else await viewTable(); break;
         case 'page': await viewPage(decodeURIComponent(arg)); break;
+        case 'standings': await viewStandings(arg); break;
         case 'leagues': await viewLeagues(arg); break;
         case 'league': await viewLeague(arg); break;
         case 'join': await viewJoin(arg); break;

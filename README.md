@@ -1,7 +1,7 @@
 # Prediction League: HTML/JS front end + PHP API
 
 Version history: see [CHANGELOG.md](CHANGELOG.md). Earlier versions, including
-the original PHP script, are tagged (`v1.13.0`, `v1.13.1`).
+the original PHP script, are in the commit history.
 
 The pages are plain HTML and JavaScript. They talk to a small PHP JSON API
 (`api/`) that reads and writes the same MySQL tables as the old Prediction
@@ -86,6 +86,16 @@ settings carry over.
   competitions they played in. Renaming a team renames it in its fixtures, so
   automatic predictions still recognise it. Fixtures still store team names,
   as in the old script.
+- League tables (League tables in the menu): the real table for each
+  competition, worked out from the results entered: played, won, drawn, lost,
+  goals, goal difference, points (3 for a win, 1 for a draw) and the last five
+  results. One table per season (players pick the season); teams in the
+  competition's team list appear before they've played. In Admin >
+  Competitions, set a competition's type to League or Cup (cups have no table)
+  and, optionally, how many top, next and bottom places are coloured (for
+  example 4 Champions League, 2 Europa League, 3 relegation). Pages can show a
+  small table with `[[standings PL]]`. Existing sites with a saved menu can
+  add "League tables" in Admin > Pages > Menu.
 - A web installer for new servers
 
 ## Files
@@ -102,6 +112,7 @@ api/alerts.php           the daily email of blocked addresses
 api/leagues.php          competition tables and private leagues
 api/pages.php            admin-written pages and the menu
 api/seasons.php          seasons, teams and team badges
+api/standings.php        the real league tables worked out from results
 api/config.sample.php    example settings (the installer writes api/config.php)
 install/index.php        the installer (locks itself once set up)
 install/installer.php    installer logic (refuses direct requests)

@@ -17,6 +17,7 @@ require __DIR__ . '/leagues.php';
 require __DIR__ . '/pages.php';
 require __DIR__ . '/seasons.php';
 require __DIR__ . '/alerts.php';
+require __DIR__ . '/standings.php';
 
 try {
   date_default_timezone_set((string)cfg('timezone'));
@@ -25,7 +26,7 @@ try {
 
   $route = (string)($_GET['r'] ?? '');
   $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-  $routes = routes() + feature_routes() + botguard_routes() + league_routes() + page_routes() + season_routes() + alert_routes();
+  $routes = routes() + feature_routes() + botguard_routes() + league_routes() + page_routes() + season_routes() + alert_routes() + standings_routes();
   if (!isset($routes[$route])) {
     fail(404, 'Unknown API route.');
   }

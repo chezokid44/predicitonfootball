@@ -445,7 +445,7 @@ function public_settings(): array {
     'menu' => function_exists('public_menu') ? public_menu() : null,
     'home_page' => function_exists('home_page_slug') ? home_page_slug() : null,
   ] + (function_exists('public_seasons') ? public_seasons() : []) + [
-    'competitions' => array_map(fn($c) => ['id' => $c['id'], 'name' => $c['name'], 'short' => $c['short']], competitions()),
+    'competitions' => array_map(fn($c) => ['id' => $c['id'], 'name' => $c['name'], 'short' => $c['short'], 'has_table' => $c['has_table']], competitions()),
   ];
 }
 
@@ -751,13 +751,17 @@ function extra_table_sql(string $name, string $driver): string {
   }
   if ($name === 'comps') {
     return $driver === 'sqlite'
-      ? "CREATE TABLE IF NOT EXISTS {$tables['comps']} (compid INTEGER PRIMARY KEY AUTOINCREMENT, lid INT NOT NULL DEFAULT 0, name VARCHAR(40) NOT NULL, short_name VARCHAR(8) NOT NULL DEFAULT '', position INT NOT NULL DEFAULT 0)"
+      ? "CREATE TABLE IF NOT EXISTS {$tables['comps']} (compid INTEGER PRIMARY KEY AUTOINCREMENT, lid INT NOT NULL DEFAULT 0, name VARCHAR(40) NOT NULL, short_name VARCHAR(8) NOT NULL DEFAULT '', position INT NOT NULL DEFAULT 0, table_type VARCHAR(10) NOT NULL DEFAULT 'league', zone_top INT NOT NULL DEFAULT 0, zone_mid INT NOT NULL DEFAULT 0, zone_bottom INT NOT NULL DEFAULT 0)"
       : "CREATE TABLE IF NOT EXISTS `{$tables['comps']}` (
           `compid` INT NOT NULL AUTO_INCREMENT,
           `lid` INT NOT NULL DEFAULT 0,
           `name` VARCHAR(40) NOT NULL,
           `short_name` VARCHAR(8) NOT NULL DEFAULT '',
           `position` INT NOT NULL DEFAULT 0,
+          `table_type` VARCHAR(10) NOT NULL DEFAULT 'league',
+          `zone_top` INT NOT NULL DEFAULT 0,
+          `zone_mid` INT NOT NULL DEFAULT 0,
+          `zone_bottom` INT NOT NULL DEFAULT 0,
           PRIMARY KEY (`compid`),
           KEY `idx_lid` (`lid`, `position`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
@@ -1014,11 +1018,31 @@ function user_prefs(int $uid): array {
 function competitions(bool $reload = false): array {
   static $list = null;
   if ($list === null || $reload) {
-    $rows = with_table('comps', fn() => q('SELECT compid, name, short_name, position FROM ' . xt('comps') . ' WHERE lid = ? ORDER BY position, name', [lid()])->fetchAll());
+    ensure_comp_columns();
+    $rows = with_table('comps', fn() => q('SELECT * FROM ' . xt('comps') . ' WHERE lid = ? ORDER BY position, name', [lid()])->fetchAll());
     $list = array_map(fn($r) => ['id' => (int)$r['compid'], 'name' => (string)$r['name'],
-      'short' => (string)$r['short_name'] !== '' ? (string)$r['short_name'] : (string)$r['name'], 'position' => (int)$r['position']], $rows);
+      'short' => (string)$r['short_name'] !== '' ? (string)$r['short_name'] : (string)$r['name'], 'position' => (int)$r['position'],
+      'has_table' => ($r['table_type'] ?? 'league') !== 'cup',
+      'zones' => ['top' => (int)($r['zone_top'] ?? 0), 'mid' => (int)($r['zone_mid'] ?? 0), 'bottom' => (int)($r['zone_bottom'] ?? 0)]], $rows);
   }
   return $list;
+}
+
+/** Older competition lists have no table columns: add them once. */
+function ensure_comp_columns(): void {
+  static $checked = false;
+  if ($checked) return;
+  $checked = true;
+  with_table('comps', function () {
+    try {
+      q('SELECT table_type, zone_top, zone_mid, zone_bottom FROM ' . xt('comps') . ' WHERE 1 = 0');
+    } catch (PDOException $e) {
+      if (stripos($e->getMessage(), 'no such table') !== false || $e->getCode() === '42S02') throw $e;
+      foreach (["table_type VARCHAR(10) NOT NULL DEFAULT 'league'", 'zone_top INT NOT NULL DEFAULT 0', 'zone_mid INT NOT NULL DEFAULT 0', 'zone_bottom INT NOT NULL DEFAULT 0'] as $col) {
+        try { db()->exec('ALTER TABLE ' . xt('comps') . " ADD COLUMN $col"); } catch (PDOException $e2) { /* already there */ }
+      }
+    }
+  });
 }
 
 /** matchid => compid for every categorised fixture. */

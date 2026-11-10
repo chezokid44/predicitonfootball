@@ -20,10 +20,10 @@ const PAGE_IMAGE_DIR = 'uploads/pages';
 const PAGE_MAX_BYTES = 200000;
 /** The site's own sections that can go in the menu, with their default labels. */
 const BUILTIN_MENU = [
-  'table' => 'Table', 'leagues' => 'Leagues', 'predictions' => 'Predict',
+  'table' => 'Table', 'standings' => 'League tables', 'leagues' => 'Leagues', 'predictions' => 'Predict',
   'results' => 'Results', 'messages' => 'Messages', 'help' => 'How to play',
 ];
-const DEFAULT_MENU = ['table', 'leagues', 'predictions', 'results', 'messages'];
+const DEFAULT_MENU = ['table', 'standings', 'leagues', 'predictions', 'results', 'messages'];
 
 function page_routes(): array {
   return [

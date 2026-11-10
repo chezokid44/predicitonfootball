@@ -699,3 +699,35 @@ fieldset[disabled] .check { opacity: 0.6; }
 .blocks h3 { margin: 18px 0 6px; }
 #ban-form { margin-top: 16px; }
 main.banned { max-width: 34rem; margin: 15vh auto; padding: 0 16px; font-family: system-ui, sans-serif; color: #1C2B4A; }
+
+/* ---------- League tables (teams) ---------- */
+
+table.teams .team-cell { display: inline-flex; align-items: center; gap: 8px; }
+table.teams .crest { width: 22px; height: 22px; }
+table.teams .tshort { display: none; text-decoration: none; }
+table.teams tr.zone-top td.pos { box-shadow: inset 4px 0 0 #1d7a46; }
+table.teams tr.zone-mid td.pos { box-shadow: inset 4px 0 0 #2f6db5; }
+table.teams tr.zone-bottom td.pos { box-shadow: inset 4px 0 0 var(--coupon); }
+table.teams tr.zone-top + tr:not(.zone-top) td, table.teams tr.zone-mid + tr:not(.zone-mid):not(.zone-top) td { border-top: 2px solid var(--ink-soft); }
+table.teams tr:not(.zone-bottom) + tr.zone-bottom td { border-top: 2px dashed var(--coupon); }
+.form-chips { display: inline-flex; gap: 3px; }
+.chip { display: inline-grid; place-items: center; width: 20px; height: 20px; font: 700 0.72rem/1 var(--display); color: #fff; border-radius: 2px; }
+.chip.w { background: #1d7a46; }
+.chip.d { background: #7d8794; }
+.chip.l { background: var(--coupon); }
+.zone-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 12px; height: 12px; display: inline-block; }
+.swatch.zone-top { background: #1d7a46; }
+.swatch.zone-mid { background: #2f6db5; }
+.swatch.zone-bottom { background: var(--coupon); }
+.widget-title { margin: 0 0 8px; }
+.zone-fields { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 9rem)); gap: 10px; }
+.zone-fields legend { grid-column: 1 / -1; font-weight: 600; margin-bottom: 4px; padding: 0; }
+.zone-fields[disabled] { opacity: 0.55; }
+.comp-edit { display: grid; gap: 10px; flex: 1; }
+@media (max-width: 640px) {
+  table.teams .form-col { display: none; }
+  table.teams .tname { display: none; }
+  table.teams .tshort { display: inline; }
+}
