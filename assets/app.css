@@ -759,3 +759,15 @@ table.preview tr.st-update td:last-child { color: var(--ink); }
 table.preview tr.st-new td:last-child { color: #1d7a46; }
 .same-rows { margin-top: 10px; }
 .same-rows summary { cursor: pointer; font-weight: 600; }
+
+/* ---------- Postponed fixtures ---------- */
+.pp-tag {
+  display: inline-block; padding: 1px 6px; vertical-align: 0.1em;
+  font: 700 0.75rem/1.4 var(--display); letter-spacing: 0.06em; text-transform: uppercase;
+  color: #8a5a00; background: #fbe8b6; border: 1px solid #e3c36b;
+}
+:root[data-theme="dark"] .pp-tag { color: #f1c232; background: transparent; border-color: #8a6d1d; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pp-tag { color: #f1c232; background: transparent; border-color: #8a6d1d; } }
+.pp-form { gap: 6px 8px; }
+.pp-form input { min-width: 12rem; }
+.edit-row .pp-hint { grid-column: 1 / -1; margin: 0; }

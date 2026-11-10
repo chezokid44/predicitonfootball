@@ -39,6 +39,7 @@ function feature_routes(): array {
     'admin.exportcsv'   => ['GET',  'route_admin_exportcsv'],
     'admin.restore'     => ['POST', 'route_admin_restore'],
     'admin.importfixtures' => ['POST', 'route_admin_importfixtures'],
+    'admin.postpone'       => ['POST', 'route_admin_postpone'],
   ];
 }
 
@@ -395,6 +396,7 @@ function route_admin_results(): array {
     }
     if (($home === null) !== ($away === null)) fail(422, "$label: enter both scores, or leave both empty to clear the result.");
     if ($home !== null && (string)$m['matchdate'] > now_str()) fail(422, "$label hasn't kicked off yet.");
+    if ($home !== null && is_postponed((int)$m['matchid'])) fail(422, "$label is postponed. Give it its new kick-off time first.");
     $clean[] = [(int)$m['matchid'], $home, $away, $label];
   }
   $pdo = db();
@@ -676,6 +678,7 @@ function route_admin_export(): array {
   $inLid = ' WHERE leagueid IN (SELECT leagueid FROM ' . xt('leagues') . ' WHERE lid = ?)';
   $tables['league_competitions'] = q('SELECT leagueid, compid FROM ' . xt('leaguecomps') . $inLid, [lid()])->fetchAll();
   $tables['league_members'] = q('SELECT leagueid, userid, role, joined FROM ' . xt('members') . $inLid, [lid()])->fetchAll();
+  $tables['postponed'] = with_table('postponed', fn() => q('SELECT matchid, reason, created FROM ' . xt('postponed') . ' WHERE lid = ?', [lid()])->fetchAll());
   $tables['seasons'] = with_table('seasons', fn() => q('SELECT seasonid, name, start_date, end_date, is_current FROM ' . xt('seasons') . ' WHERE lid = ?', [lid()])->fetchAll());
   $tables['teams'] = with_table('teams', fn() => q('SELECT teamid, name, short_name, badge FROM ' . xt('teams') . ' WHERE lid = ?', [lid()])->fetchAll());
   $tables['competition_teams'] = with_table('compteams', fn() => q('SELECT seasonid, compid, teamid FROM ' . xt('compteams') . ' WHERE seasonid IN (SELECT seasonid FROM ' . xt('seasons') . ' WHERE lid = ?)', [lid()])->fetchAll());
@@ -769,13 +772,14 @@ function route_admin_restore(): array {
     if (!isset($r['teamid'], $r['name'])) continue;
     $teamRows[] = [(int)$r['teamid'], mb_substr((string)$r['name'], 0, 30), mb_substr((string)($r['short_name'] ?? ''), 0, 5), badge_url($r['badge'] ?? null)];
   }
+  $ppRows = array_values(array_filter(array_map(fn($r) => [(int)($r['matchid'] ?? 0), mb_substr((string)($r['reason'] ?? ''), 0, 80), (string)($r['created'] ?? now_str())], $bt('postponed')), fn($r) => $r[0] > 0));
   $sIds = array_column($seasonRows, 0);
   $ctRows = array_values(array_filter(array_map(fn($r) => [(int)($r['seasonid'] ?? 0), (int)($r['compid'] ?? 0), (int)($r['teamid'] ?? 0)], $bt('competition_teams')), fn($r) => in_array($r[0], $sIds, true)));
   $menuItems = array_values(array_filter(array_map(fn($r) => mb_substr((string)($r['item'] ?? ''), 0, 40), $bt('menu'))));
   // Create the tables before the transaction: MySQL commits implicitly on CREATE TABLE.
   ensure_league_tables();
   with_table('pages', fn() => q('SELECT 1 FROM ' . xt('pages') . ' WHERE 1 = 0'));
-  foreach (['seasons', 'teams', 'compteams'] as $tb) with_table($tb, fn() => q('SELECT 1 FROM ' . xt($tb) . ' WHERE 1 = 0'));
+  foreach (['seasons', 'teams', 'compteams', 'postponed'] as $tb) with_table($tb, fn() => q('SELECT 1 FROM ' . xt($tb) . ' WHERE 1 = 0'));
   with_table('menu', fn() => q('SELECT 1 FROM ' . xt('menu') . ' WHERE 1 = 0'));
   with_table('prefs', fn() => q('SELECT COUNT(*) FROM ' . xt('prefs')));
   ensure_prefs_columns();
@@ -809,6 +813,8 @@ function route_admin_restore(): array {
     foreach ($follows as $r) q('INSERT INTO ' . xt('follows') . ' (lid, userid, compid) VALUES (?, ?, ?)', [lid(), $r[0], $r[1]]);
     q('DELETE FROM ' . xt('compteams') . ' WHERE seasonid IN (SELECT seasonid FROM ' . xt('seasons') . ' WHERE lid = ?)', [lid()]);
     q('DELETE FROM ' . xt('seasons') . ' WHERE lid = ?', [lid()]);
+    q('DELETE FROM ' . xt('postponed') . ' WHERE lid = ?', [lid()]);
+    foreach ($ppRows as $r) q('INSERT INTO ' . xt('postponed') . ' (lid, matchid, reason, created) VALUES (?, ?, ?, ?)', [lid(), ...$r]);
     q('DELETE FROM ' . xt('teams') . ' WHERE lid = ?', [lid()]);
     foreach ($seasonRows as $r) q('INSERT INTO ' . xt('seasons') . ' (seasonid, lid, name, start_date, end_date, is_current) VALUES (?, ?, ?, ?, ?, ?)', [$r[0], lid(), ...array_slice($r, 1)]);
     foreach ($teamRows as $r) q('INSERT INTO ' . xt('teams') . ' (teamid, lid, name, short_name, badge) VALUES (?, ?, ?, ?, ?)', [$r[0], lid(), ...array_slice($r, 1)]);
@@ -935,9 +941,32 @@ function csv_kickoff(string $date, string $time): ?string {
   return null;
 }
 
+/**
+ * Mark a fixture postponed (predictions close and stay private) or not. A
+ * postponed fixture comes back by itself when it's given a new kick-off time.
+ */
+function route_admin_postpone(): array {
+  require_admin();
+  $b = body();
+  $m = get_match((int)($b['id'] ?? 0));
+  $id = (int)$m['matchid'];
+  $label = clean_text($m['hometeam']) . ' v ' . clean_text($m['awayteam']);
+  if (!empty($b['postponed'])) {
+    if ($m['homescore'] !== null) fail(422, "$label already has a result. Clear the result first if the match didn't go ahead.");
+    $reason = trim(preg_replace('/\s+/u', ' ', mb_substr((string)($b['reason'] ?? ''), 0, 80)));
+    set_postponed($id, $reason);
+    log_event('fixture_edit', "Postponed $label" . ($reason !== '' ? " ($reason)" : ''));
+  } else {
+    set_postponed($id, null);
+    log_event('fixture_edit', "$label is no longer postponed (kick-off unchanged)");
+  }
+  return ['fixture' => match_out(get_match($id))];
+}
+
 /** "2 - 1", "2-1", "2:1" -> [2, 1]; empty -> null; anything else -> false. */
 function csv_score(string $v) {
   $v = trim($v);
+  if (preg_match('/^(p\s*[-:–]\s*p|pp|p\/p|postponed|pst|ppd)$/iu', $v)) return 'postponed';
   if ($v === '' || $v === '-' || strcasecmp($v, 'v') === 0 || strcasecmp($v, 'tbc') === 0) return null;
   if (preg_match('/^(\d{1,2})\s*[-:–]\s*(\d{1,2})$/u', $v, $m)) return [(int)$m[1], (int)$m[2]];
   return false;
@@ -1047,7 +1076,7 @@ function route_admin_importfixtures(): array {
     $score = isset($map['result']) ? csv_score($cell('result'))
       : ((isset($map['hs']) && $cell('hs') !== '' && $cell('as') !== '') ? csv_score($cell('hs') . '-' . $cell('as')) : null);
     $row = ['line' => $line, 'kickoff' => $kickoff ? "$kickoff:00" : null, 'home_team' => $cell('home'), 'away_team' => $cell('away'),
-            'competition' => $compName, 'result' => is_array($score) ? $score : null, 'status' => 'new', 'note' => '', 'id' => null, 'changes' => []];
+            'competition' => $compName, 'result' => is_array($score) ? $score : null, 'postpone' => $score === 'postponed', 'status' => 'new', 'note' => '', 'id' => null, 'changes' => []];
     if ($compName !== '' && !isset($compByName[mb_strtolower($compName)])) {
       $newComps[mb_strtolower($compName)] = $compName;
     }
@@ -1061,7 +1090,7 @@ function route_admin_importfixtures(): array {
       $row['home_team'] = $home;
       $row['away_team'] = $away;
       $when = "$kickoff:00";
-      if ($score && $when > $now) {
+      if (is_array($score) && $when > $now) {
         $row['result'] = null;
         $row['note'] = 'Has a result but hasn\'t kicked off yet, so the result is ignored. ';
       }
@@ -1080,7 +1109,16 @@ function route_admin_importfixtures(): array {
         if ($row['result'] && $row['result'] !== $had) $row['changes'][] = $had ? "result changed from {$had[0]}-{$had[1]}" : 'result added';
         if (!$row['result'] && $had && $when <= $now) $row['note'] .= 'The site already has a result for this match; it\'s kept. ';
         if ((($cmap[(int)$match['matchid']] ?? null) !== $cid) && $cid !== null) $row['changes'][] = 'put into ' . $compName;
+        $wasPP = is_postponed((int)$match['matchid']);
+        $moved = substr((string)$match['matchdate'], 0, 16) !== $kickoff;
+        if ($row['postpone'] && !$wasPP && !$had) $row['changes'][] = 'postponed';
+        if ($row['postpone'] && $had) $row['note'] .= 'Marked postponed in the file, but the site has a result; it\'s kept. ';
+        if (!$row['postpone'] && $wasPP && $moved) $row['changes'][] = 'rearranged (no longer postponed)';
+        $row['postpone'] = $row['postpone'] && !$had;
+        $row['clear_postpone'] = !$row['postpone'] && $wasPP && $moved;
         $row['status'] = $row['changes'] ? 'update' : 'same';
+      } elseif ($row['postpone']) {
+        $row['note'] .= 'Postponed. ';
       } elseif ($when < $now && !$row['result']) {
         $row['note'] .= 'Already kicked off, with no result. ';
       }
@@ -1098,7 +1136,7 @@ function route_admin_importfixtures(): array {
   $results = count(array_filter($rows, fn($r) => $r['status'] !== 'error' && $r['result'] && ($r['status'] === 'new' || in_array(true, array_map(fn($c) => str_starts_with($c, 'result'), $r['changes']), true))));
   $summary = ['new' => $count('new'), 'updates' => $count('update'), 'same' => $count('same'), 'errors' => $count('error'), 'results' => $results];
   if ($dryRun) {
-    $out = array_map(fn($r) => array_diff_key($r, ['id' => 1]) + ['changes' => $r['changes']], $rows);
+    $out = array_map(fn($r) => array_diff_key($r, ['id' => 1, 'clear_postpone' => 1]) + ['changes' => $r['changes']], $rows);
     return ['rows' => $out, 'new_competitions' => array_values($newComps), 'competition' => $defaultComp] + $summary
       // older pages read these
       + ['ok' => $summary['new'], 'duplicates' => $summary['same'], 'errors' => $summary['errors']];
@@ -1112,6 +1150,7 @@ function route_admin_importfixtures(): array {
   foreach ($needed as $key => $name) $compByName[$key] = add_competition($name, '');
   teams_map();
   with_table('compteams', fn() => q('SELECT 1 FROM ' . xt('compteams') . ' WHERE 1 = 0'));
+  postponed_map();
 
   $pdo = db();
   $pdo->beginTransaction();
@@ -1122,7 +1161,9 @@ function route_admin_importfixtures(): array {
     if ($r['status'] === 'new') {
       q('INSERT INTO ' . t('matches') . ' (lid, matchdate, hometeam, awayteam, homescore, awayscore) VALUES (?, ?, ?, ?, ?, ?)',
         [lid(), $r['kickoff'], $r['home_team'], $r['away_team'], $r['result'][0] ?? null, $r['result'][1] ?? null]);
-      set_match_competition((int)$pdo->lastInsertId(), $cid);
+      $newId = (int)$pdo->lastInsertId();
+      set_match_competition($newId, $cid);
+      if ($r['postpone']) set_postponed($newId, '');
       $added++;
       if ($r['result']) $resultsSet++;
     } elseif ($r['status'] === 'update') {
@@ -1132,6 +1173,8 @@ function route_admin_importfixtures(): array {
         $resultsSet++;
       }
       if ($cid !== null) set_match_competition($r['id'], $cid);
+      if ($r['postpone']) set_postponed($r['id'], '');
+      if (!empty($r['clear_postpone'])) set_postponed($r['id'], null);
       $updated++;
     }
     if ($r['status'] !== 'error') {

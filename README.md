@@ -116,6 +116,14 @@ settings carry over.
   problems before anything is saved. Re-importing an updated copy of the file
   updates fixtures already on the site (moved kick-off times, new or corrected
   results) instead of adding them again; up to 2,000 rows at a time.
+- Postponed fixtures (Admin > Fixtures > Postpone, with an optional reason):
+  predictions close straight away, nobody's predictions are shown, the match
+  can't be given a result and gets no automatic predictions. Players see it
+  under "Postponed" with their prediction kept. "Set new date" puts it back
+  on: once the kick-off time changes, predictions reopen until the new
+  deadline. "Not postponed" undoes it without changing the date. Imports
+  understand "P - P" in the Result column, and an updated file with a new
+  date rearranges the match.
 - A web installer for new servers
 
 ## Files
@@ -318,7 +326,8 @@ UPDATE pluserdata SET usertype = 4 WHERE username = 'their-username';
   (addresses blocked by the bot traps), `plleagues`, `plleaguecomps`,
   `plleaguemembers` (private leagues), `plfollows` (the competitions each
   player plays), `plpages`, `plmenu`, `plseasons`, `plteams` and
-  `plcompteams` (the teams in each competition each season). They're created automatically the first time
+  `plcompteams` (the teams in each competition each season) and
+  `plpostponed`. They're created automatically the first time
   they're needed, by the installer, or by `sql/upgrade.sql`. The old tables
   aren't altered apart from the wider password column.
 - **Automatic predictions** are filled in the next time anyone uses the site

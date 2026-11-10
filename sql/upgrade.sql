@@ -288,3 +288,12 @@ CREATE TABLE IF NOT EXISTS `plcompteams` (
           PRIMARY KEY (`seasonid`, `compid`, `teamid`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
 
+
+-- Postponed fixtures (predictions closed until a new kick-off time is set).
+CREATE TABLE IF NOT EXISTS `plpostponed` (
+          `lid` INT NOT NULL DEFAULT 0,
+          `matchid` INT NOT NULL,
+          `reason` VARCHAR(80) NOT NULL DEFAULT '',
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`lid`, `matchid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;

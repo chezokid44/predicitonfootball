@@ -479,9 +479,39 @@ function predictions_closed(string $kickoff): bool {
   return prediction_deadline($kickoff) <= now_str();
 }
 
+// ---------------------------------------------------------------------
+// Postponed fixtures: predictions are closed (and nobody else's are shown)
+// until an admin gives the fixture a new kick-off time.
+// ---------------------------------------------------------------------
+
+/** matchid => ['reason' => ..., 'since' => ...] */
+function postponed_map(bool $reload = false): array {
+  static $map = null;
+  if ($map === null || $reload) {
+    $map = [];
+    foreach (with_table('postponed', fn() => q('SELECT matchid, reason, created FROM ' . xt('postponed') . ' WHERE lid = ?', [lid()])->fetchAll()) as $r) {
+      $map[(int)$r['matchid']] = ['reason' => (string)$r['reason'], 'since' => (string)$r['created']];
+    }
+  }
+  return $map;
+}
+
+function is_postponed(int $matchId): bool {
+  return isset(postponed_map()[$matchId]);
+}
+
+function set_postponed(int $matchId, ?string $reason): void {
+  with_table('postponed', fn() => q('DELETE FROM ' . xt('postponed') . ' WHERE lid = ? AND matchid = ?', [lid(), $matchId]));
+  if ($reason !== null) {
+    q('INSERT INTO ' . xt('postponed') . ' (lid, matchid, reason, created) VALUES (?, ?, ?, ?)', [lid(), $matchId, mb_substr($reason, 0, 80), now_str()]);
+  }
+  postponed_map(true);
+}
+
 function match_out(array $m): array {
   $kickoff = (string)$m['matchdate'];
-  $started = $kickoff <= now_str();
+  $pp = postponed_map()[(int)$m['matchid']] ?? null;
+  $started = $kickoff <= now_str() && !$pp;
   $closes = prediction_deadline($kickoff);
   $home = $m['homescore'] ?? null;
   $away = $m['awayscore'] ?? null;
@@ -491,8 +521,10 @@ function match_out(array $m): array {
     'kickoff_iso' => (new DateTime($kickoff))->format(DATE_ATOM),
     'home_team' => clean_text($m['hometeam']),
     'away_team' => clean_text($m['awayteam']),
-    'locked' => $closes <= now_str(),   // predictions closed
-    'started' => $started,              // kicked off
+    'locked' => $closes <= now_str() || $pp !== null,   // predictions closed (or postponed)
+    'started' => $started,              // kicked off (a postponed match hasn't)
+    'postponed' => $pp !== null,
+    'postponed_reason' => $pp ? clean_text($pp['reason']) : null,
     'closes' => $closes,
     'result' => ($home === null || $away === null) ? null : ['home' => (int)$home, 'away' => (int)$away],
     'competition' => match_competition((int)$m['matchid']),
@@ -659,7 +691,9 @@ function admin_count(): int {
 function can_see_prediction(array $match, int $ownerId): bool {
   $viewer = current_user();
   if ($viewer && $viewer['id'] === $ownerId) return true;
-  return setting_bool('VIEWUSERPREDS') || predictions_closed((string)$match['matchdate']);
+  if (setting_bool('VIEWUSERPREDS')) return true;
+  // While a match is postponed, predictions stay private until it's rearranged and they close again.
+  return predictions_closed((string)$match['matchdate']) && !is_postponed((int)$match['matchid']);
 }
 
 // ---------------------------------------------------------------------
@@ -712,7 +746,8 @@ function extra_tables(): array {
           'comps' => 'plcompetitions', 'matchcomp' => 'plmatchcomp', 'blocks' => 'plblocklist',
           'leagues' => 'plleagues', 'leaguecomps' => 'plleaguecomps', 'members' => 'plleaguemembers',
           'follows' => 'plfollows', 'pages' => 'plpages', 'menu' => 'plmenu',
-          'seasons' => 'plseasons', 'teams' => 'plteams', 'compteams' => 'plcompteams'];
+          'seasons' => 'plseasons', 'teams' => 'plteams', 'compteams' => 'plcompteams',
+          'postponed' => 'plpostponed'];
 }
 
 function extra_table_sql(string $name, string $driver): string {
@@ -773,6 +808,17 @@ function extra_table_sql(string $name, string $driver): string {
           `compid` INT NOT NULL,
           PRIMARY KEY (`lid`, `matchid`),
           KEY `idx_comp` (`lid`, `compid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
+  }
+  if ($name === 'postponed') {
+    return $driver === 'sqlite'
+      ? "CREATE TABLE IF NOT EXISTS {$tables['postponed']} (lid INT NOT NULL DEFAULT 0, matchid INT NOT NULL, reason VARCHAR(80) NOT NULL DEFAULT '', created DATETIME NOT NULL, PRIMARY KEY (lid, matchid))"
+      : "CREATE TABLE IF NOT EXISTS `{$tables['postponed']}` (
+          `lid` INT NOT NULL DEFAULT 0,
+          `matchid` INT NOT NULL,
+          `reason` VARCHAR(80) NOT NULL DEFAULT '',
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`lid`, `matchid`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
   }
   if ($name === 'seasons') {

@@ -123,6 +123,7 @@
 
   const autoTag = (p) => (p && p.auto ? '<span class="auto-tag" title="Made automatically from the teams\' recent form">Auto</span>' : '');
   // "Closes 14:30", or with the day when that isn't the kick-off day.
+  const ppTag = (f) => (f.postponed ? `<span class="pp-tag">Postponed</span>` : '');
   const closesText = (f) => `Closes ${f.closes.slice(0, 10) === f.kickoff.slice(0, 10) ? fmtTime(f.closes) : fmtShort(f.closes)}`;
   const compTag = (c) => (c ? `<span class="comp-tag" title="${esc(c.name)}">${esc(c.short || c.name)}</span>` : '');
 
@@ -479,7 +480,9 @@
       } else {
         const shown = (side) => `<span class="box locked">${p ? p[side] : '·'}</span>`;
         score = `${shown('home')}<span class="dash" aria-hidden="true">–</span>${shown('away')}`;
-        status = f.result
+        status = f.postponed
+          ? `${ppTag(f)}<br><span class="muted">New date to come${p ? '. Your prediction is kept' : ''}</span>`
+          : f.result
           ? `<a href="#/match/${f.id}">Final ${f.result.home}–${f.result.away}</a><br>${p ? autoTag(p) + outcomePill(f.my_points, f.my_outcome) : '<span class="muted">No prediction</span>'}`
           : `<a href="#/match/${f.id}">${p ? (f.started ? 'Kicked off' : 'Predictions closed') : 'Missed'}</a>${p && p.auto ? '<br>' + autoTag(p) : ''}`;
       }
@@ -495,7 +498,8 @@
     const draw = () => {
       const shown = applyCompFilter(fixtures);
       const open = shown.filter((f) => !f.locked);
-      const played = shown.filter((f) => f.locked);
+      const postponed = shown.filter((f) => f.postponed);
+      const played = shown.filter((f) => f.locked && !f.postponed);
       const allOpen = fixtures.filter((f) => !f.locked && plays(f));
       const missing = allOpen.filter((f) => !f.my_prediction).length;
       const cut = state.settings.cutoff_minutes || 0;
@@ -518,6 +522,9 @@
         const n = changed().length;
         html += `<div class="savebar"><button class="btn" type="submit" id="save-preds">Save predictions</button>
           <span class="msg" id="save-msg" aria-live="polite">${n ? `${plural(n, 'match', 'matches')} changed, not saved yet.` : 'No unsaved changes.'}</span></div>`;
+      }
+      if (postponed.length) {
+        html += `<h2 class="section-head">Postponed</h2><p class="muted tight">Predictions reopen when ${postponed.length === 1 ? 'this match gets its' : 'these matches get their'} new date.</p>${fixtureGroups(postponed, row)}`;
       }
       if (played.length) {
         html += `<h2 class="section-head">Closed and played</h2>${fixtureGroups(played, row, { newestFirst: true })}`;
@@ -610,9 +617,9 @@
       ${m.competition ? `<p class="match-comp">${esc(m.competition.name)}</p>` : ''}
       <section class="next-match" aria-label="Match">
         <div class="team home">${teamName(m, 'home')}</div>
-        <div class="when${m.result ? ' final' : ''}">${m.result ? `${m.result.home}–${m.result.away}` : esc(fmtShort(m.kickoff))}</div>
+        <div class="when${m.result ? ' final' : ''}">${m.result ? `${m.result.home}–${m.result.away}` : m.postponed ? 'Postponed' : esc(fmtShort(m.kickoff))}</div>
         <div class="team away">${teamName(m, 'away')}</div>
-        <div class="meta">${m.result ? `Final score. Kicked off ${esc(fmtShort(m.kickoff))}.` : m.started ? 'Kicked off. Waiting for the result.' : m.locked ? `Predictions closed at ${esc(fmtTime(m.closes))}.` : `Predictions close ${esc(closesText(m).replace('Closes ', '')).replace(/^(\d)/, 'at $1')}.`}</div>
+        <div class="meta">${m.postponed ? `Postponed${m.postponed_reason ? ` (${esc(m.postponed_reason)})` : ''}. It was due to kick off ${esc(fmtShort(m.kickoff))}. Predictions reopen when it's rearranged.` : m.result ? `Final score. Kicked off ${esc(fmtShort(m.kickoff))}.` : m.started ? 'Kicked off. Waiting for the result.' : m.locked ? `Predictions closed at ${esc(fmtTime(m.closes))}.` : `Predictions close ${esc(closesText(m).replace('Closes ', '')).replace(/^(\d)/, 'at $1')}.`}</div>
       </section>`;
 
     if (data.hidden_count) {
@@ -955,17 +962,21 @@
     const { fixtures: all } = await api('fixtures');
     const filter = adminFilter();
     const fixtures = adminFiltered(all, filter);
-    const upcoming = fixtures.filter((f) => !f.started).sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+    const postponedList = fixtures.filter((f) => f.postponed).sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+    const upcoming = fixtures.filter((f) => !f.started && !f.postponed).sort((a, b) => a.kickoff.localeCompare(b.kickoff));
     const past = fixtures.filter((f) => f.started).sort((a, b) => b.kickoff.localeCompare(a.kickoff));
     const rows = state.settings.multi_fixture_rows || 10;
     const hidden = all.length - fixtures.length;
 
     const list = (items) => items.map((f) => `<li class="admin-item" data-id="${f.id}">
         <label class="pick"><input type="checkbox" data-pick="${f.id}" aria-label="Select ${esc(f.home_team)} v ${esc(f.away_team)}"></label>
-        <span class="grow"><strong>${esc(f.home_team)} v ${esc(f.away_team)}</strong><br>
+        <span class="grow"><strong>${esc(f.home_team)} v ${esc(f.away_team)}</strong> ${ppTag(f)}${f.postponed && f.postponed_reason ? ` <span class="muted">${esc(f.postponed_reason)}</span>` : ''}<br>
         <span class="muted">${compTag(f.competition)}${esc(fmtShort(f.kickoff))}${f.result ? `, final ${f.result.home}–${f.result.away}` : ''}, ${esc(plural(f.prediction_count, 'prediction'))}</span></span>
         <span class="actions">
-          <button class="btn small quiet" type="button" data-edit="${f.id}">Edit</button>
+          ${f.postponed ? `<button class="btn small" type="button" data-edit="${f.id}" data-rearrange>Set new date</button>
+            <button class="btn small quiet" type="button" data-unpostpone="${f.id}">Not postponed</button>`
+            : `<button class="btn small quiet" type="button" data-edit="${f.id}">Edit</button>
+            ${f.result ? '' : `<button class="btn small quiet" type="button" data-postpone="${f.id}">Postpone</button>`}`}
           <button class="btn small danger" type="button" data-delete="${f.id}">Delete</button>
         </span></li>`).join('');
 
@@ -984,7 +995,9 @@
       ${fixtures.length ? `<div class="bulk-bar"><label class="check"><input type="checkbox" id="pick-all"><span>Select all shown</span></label>
         <button class="btn small danger" type="button" id="remove-picked" disabled>Remove selected</button>
         <span class="muted" id="picked-msg" aria-live="polite"></span></div>` : ''}
-      <div id="fixture-picks"><h3>Upcoming</h3>
+      <div id="fixture-picks">${postponedList.length ? `<h3>Postponed</h3>
+      <p class="muted tight">Predictions are closed until you give each one its new date and time with "Set new date".</p>
+      <ul class="admin-list">${list(postponedList)}</ul>` : ''}<h3>Upcoming</h3>
       ${upcoming.length ? `<ul class="admin-list">${list(upcoming)}</ul>` : '<p class="muted">No upcoming fixtures.</p>'}
       <h3>Kicked off</h3>
       ${past.length ? `<ul class="admin-list">${list(past)}</ul>` : '<p class="muted">None yet.</p>'}</div>`);
@@ -1053,21 +1066,50 @@
         } catch (err) { toast(err.message, true); }
       });
     }));
+    main.querySelectorAll('[data-postpone]').forEach((btn) => btn.addEventListener('click', () => {
+      const f = byId[btn.dataset.postpone];
+      const actions = btn.closest('.actions');
+      actions.innerHTML = `<form class="pp-form inline-form"><label>Reason (optional)<input type="text" name="reason" maxlength="80" placeholder="e.g. waterlogged pitch"></label>
+        <button class="btn small danger" type="submit">Postpone</button><button class="btn small quiet" type="button" data-cancel>Cancel</button></form>`;
+      const pf = actions.querySelector('form');
+      pf.reason.focus();
+      pf.querySelector('[data-cancel]').addEventListener('click', adminFixtures);
+      pf.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          await submitting(pf.querySelector('[type=submit]'), () => api('admin.postpone', { method: 'POST', body: { id: f.id, postponed: true, reason: pf.reason.value } }));
+          toast(`${f.home_team} v ${f.away_team} is postponed. Predictions are closed until it has a new date.`);
+          adminFixtures();
+        } catch (err) { toast(err.message, true); }
+      });
+    }));
+    main.querySelectorAll('[data-unpostpone]').forEach((btn) => btn.addEventListener('click', () => {
+      const f = byId[btn.dataset.unpostpone];
+      armed(btn, 'Keep the same date?', async () => {
+        try {
+          await api('admin.postpone', { method: 'POST', body: { id: f.id, postponed: false } });
+          toast(`${f.home_team} v ${f.away_team} is back on at its original time.`);
+          adminFixtures();
+        } catch (err) { toast(err.message, true); }
+      });
+    }));
     main.querySelectorAll('[data-edit]').forEach((btn) => btn.addEventListener('click', () => {
       const f = byId[btn.dataset.edit];
       const item = btn.closest('.admin-item');
       item.innerHTML = `<form class="grid-row edit-row${competitionsOn() ? ' with-comp' : ''}">${fixtureInputs(0, f)}
         <span class="actions"><button class="btn small" type="submit">Save</button><button class="btn small quiet" type="button" data-cancel>Cancel</button></span></form>`;
       const ef = item.querySelector('form');
+      if (f.postponed) ef.insertAdjacentHTML('afterbegin', '<p class="hint pp-hint">Change the kick-off to the new date and time to put this match back on.</p>');
       ef.querySelector('[name=kickoff]').focus();
       ef.querySelector('[data-cancel]').addEventListener('click', adminFixtures);
       ef.addEventListener('submit', async (e) => {
         e.preventDefault();
         const v = (n) => { const el = ef.querySelector(`[name=${n}]`); return el ? el.value.trim() : ''; };
         try {
-          await submitting(ef.querySelector('[type=submit]'), () => api('admin.fixture', { method: 'POST', body: {
+          const res = await submitting(ef.querySelector('[type=submit]'), () => api('admin.fixture', { method: 'POST', body: {
             id: f.id, kickoff: v('kickoff'), home_team: v('home_team'), away_team: v('away_team'), competition_id: v('competition_id') || null } }));
-          toast('Fixture saved.');
+          toast(f.postponed ? (res.fixture.postponed ? 'Saved, but it\'s still postponed: change the kick-off to its new date and time.'
+            : `Rearranged for ${fmtShort(res.fixture.kickoff)}. Predictions are open again.`) : 'Fixture saved.');
           adminFixtures();
         } catch (err) { toast(err.message, true); }
       });
@@ -1237,10 +1279,12 @@
     }
     const waiting = started.filter((f) => !f.result).length;
     const elsewhere = allStarted.filter((f) => !f.result).length - waiting;
+    const ppCount = all.filter((f) => f.postponed).length;
     let html = `<p class="lede">${waiting ? `${esc(plural(waiting, 'match', 'matches'))} here need a result.` : 'Every match shown has a result.'}
       The table updates as soon as you save. Clear both scores to remove a result.</p>
       ${adminFilterBar(filter, { show: true })}
       ${elsewhere ? `<p class="muted tight">${esc(plural(elsewhere, 'other match', 'other matches'))} outside this season or competition ${elsewhere === 1 ? 'needs' : 'need'} a result.</p>` : ''}
+      ${ppCount ? `<p class="muted tight">${esc(plural(ppCount, 'postponed match', 'postponed matches'))} ${ppCount === 1 ? 'isn\'t' : 'aren\'t'} listed. <a href="#/admin/fixtures">Give ${ppCount === 1 ? 'it its' : 'them their'} new date</a> first.</p>` : ''}
       ${started.length ? '' : '<p class="muted">No matches that have kicked off match these choices.</p>'}<ul class="fixtures">`;
     for (const f of started) {
       const box = (side) => `<input class="box${f.result ? ' filled' : ''}" type="number" inputmode="numeric" min="0" max="99"

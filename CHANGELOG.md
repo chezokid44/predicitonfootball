@@ -5,6 +5,22 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.5.0 (10 November 2026)
+
+**Postponed fixtures.**
+- Admin > Fixtures: "Postpone" (with an optional reason) closes predictions
+  straight away; postponed matches are listed together at the top.
+- While postponed: no new or changed predictions, other players' predictions
+  stay hidden, no result can be entered, no automatic predictions, and it's
+  skipped as the "next match".
+- Players see it under "Postponed" on Predict, with their own prediction
+  kept; the match page says it's postponed and why.
+- "Set new date" puts it back on: when the kick-off time changes, predictions
+  reopen until the new deadline. "Not postponed" undoes it without a new date.
+- Imports: "P - P" (or "postponed") in the Result column marks a fixture
+  postponed; an updated file with a new date rearranges it.
+- New table `plpostponed` (created automatically; in backups).
+
 ## v2.4.0 (10 November 2026)
 
 **Import fixtures and results** (Admin > Data):

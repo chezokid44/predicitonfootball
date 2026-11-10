@@ -127,6 +127,7 @@ function run_auto_predictions(): int {
     $added = 0;
     $ins = db()->prepare('INSERT INTO ' . t('predictions') . ' (lid, userid, matchid, predtime, homescore, awayscore, isauto) VALUES (?, ?, ?, ?, ?, ?, ?)');
     foreach ($matches as $m) {
+      if (is_postponed((int)$m['matchid'])) continue;  // rearranged later: predicted then, if still needed
       $deadline = prediction_deadline((string)$m['matchdate']);
       $comp = competition_map()[(int)$m['matchid']] ?? null;
       // Only for competitions the player plays (fixtures outside competitions count for everyone).

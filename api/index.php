@@ -219,8 +219,10 @@ function route_account(): array {
 // ---------------------------------------------------------------------
 
 function route_standings(): array {
-  $next = q('SELECT * FROM ' . t('matches') . ' WHERE lid = ? AND matchdate > ? ORDER BY matchdate LIMIT 1',
-    [lid(), now_str()])->fetch();
+  $next = null;
+  foreach (q('SELECT * FROM ' . t('matches') . ' WHERE lid = ? AND matchdate > ? ORDER BY matchdate LIMIT 20', [lid(), now_str()]) as $cand) {
+    if (!is_postponed((int)$cand['matchid'])) { $next = $cand; break; }
+  }
   $season = requested_season();
   return [
     'table' => $season ? compute_table(season_bounds($season)) : compute_standings(),
@@ -285,8 +287,8 @@ function route_save_predictions(): array {
       }
       $m = q('SELECT matchid, matchdate FROM ' . t('matches') . ' WHERE lid = ? AND matchid = ?', [lid(), $matchId])->fetch();
       if (!$m) continue;
-      if (predictions_closed((string)$m['matchdate'])) {
-        $skipped[] = $matchId;  // predictions closed while the page was open
+      if (predictions_closed((string)$m['matchdate']) || is_postponed($matchId)) {
+        $skipped[] = $matchId;  // predictions closed (or the match was postponed) while the page was open
         continue;
       }
       $key = [lid(), $user['id'], $matchId];
@@ -401,10 +403,13 @@ function route_admin_fixture(): array {
   competition_map();  // make sure the table exists
   $id = (int)($b['id'] ?? 0);
   if ($id) {
-    get_match($id);
+    $old = get_match($id);
     q('UPDATE ' . t('matches') . ' SET matchdate = ?, hometeam = ?, awayteam = ? WHERE lid = ? AND matchid = ?',
       [$kickoff, $home, $away, lid(), $id]);
-    log_event('fixture_edit', "Edited fixture: $home v $away, " . substr($kickoff, 0, 16));
+    // A postponed match with a new kick-off time is back on: predictions reopen.
+    $rearranged = is_postponed($id) && substr((string)$old['matchdate'], 0, 16) !== substr($kickoff, 0, 16);
+    if ($rearranged) set_postponed($id, null);
+    log_event('fixture_edit', ($rearranged ? 'Rearranged postponed fixture' : 'Edited fixture') . ": $home v $away, " . substr($kickoff, 0, 16));
   } else {
     q('INSERT INTO ' . t('matches') . ' (lid, matchdate, hometeam, awayteam) VALUES (?, ?, ?, ?)',
       [lid(), $kickoff, $home, $away]);
@@ -456,6 +461,7 @@ function route_admin_delete_fixture(): array {
   q('DELETE FROM ' . t('predictions') . ' WHERE lid = ? AND matchid = ?', [lid(), $id]);
   q('DELETE FROM ' . t('matches') . ' WHERE lid = ? AND matchid = ?', [lid(), $id]);
   $pdo->commit();
+  set_postponed($id, null);
   with_table('matchcomp', fn() => q('DELETE FROM ' . xt('matchcomp') . ' WHERE lid = ? AND matchid = ?', [lid(), $id]));
   save_standings(compute_standings());
   log_event('fixture_delete', 'Deleted fixture: ' . clean_text($gone['hometeam']) . ' v ' . clean_text($gone['awayteam']) . ', ' . substr((string)$gone['matchdate'], 0, 16));
@@ -483,6 +489,8 @@ function route_admin_delete_fixtures(): array {
   q('DELETE FROM ' . t('matches') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $ids));
   q('DELETE FROM ' . xt('matchcomp') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $ids));
   $pdo->commit();
+  with_table('postponed', fn() => q('DELETE FROM ' . xt('postponed') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $ids)));
+  postponed_map(true);
   competition_map(true);
   save_standings(compute_standings());
   $names = array_map(fn($r) => clean_text($r['hometeam']) . ' v ' . clean_text($r['awayteam']) . ' ' . substr((string)$r['matchdate'], 0, 10), $found);
@@ -502,6 +510,9 @@ function route_admin_result(): array {
   }
   if ($home !== null && (string)$m['matchdate'] > now_str()) {
     fail(422, 'This match hasn\'t kicked off yet. Change the kick-off time first if it\'s wrong.');
+  }
+  if ($home !== null && is_postponed($id)) {
+    fail(422, 'This match is postponed. Give it its new kick-off time first.');
   }
   q('UPDATE ' . t('matches') . ' SET homescore = ?, awayscore = ? WHERE lid = ? AND matchid = ?',
     [$home, $away, lid(), $id]);
