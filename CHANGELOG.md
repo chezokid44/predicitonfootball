@@ -5,6 +5,23 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.4.0 (10 November 2026)
+
+**Import fixtures and results** (Admin > Data):
+- Reads fixture-list downloads such as fixturedownload.com's CSV (Match
+  Number, Round Number, Date with time, Location, Home Team, Away Team,
+  Result "2 - 1") as well as the site's own columns, plus Result or Home
+  score / Away score columns.
+- Choose the competition for files without a Competition column, or type a
+  new one; optionally put the teams into that competition's team list for
+  each season.
+- The preview lists new fixtures, updates and problems (line by line) before
+  anything is saved, with unchanged rows folded away.
+- Re-importing an updated file updates existing fixtures (same teams,
+  competition and season): moved kick-off times, results added or corrected.
+  Results on matches that haven't kicked off are ignored.
+- Up to 2,000 rows (was 500); one activity log entry per import.
+
 ## v2.3.0 (10 November 2026)
 
 - **Remove several fixtures at once.** Admin > Fixtures has a tick box on each

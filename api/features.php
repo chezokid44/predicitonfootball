@@ -935,10 +935,35 @@ function csv_kickoff(string $date, string $time): ?string {
   return null;
 }
 
+/** "2 - 1", "2-1", "2:1" -> [2, 1]; empty -> null; anything else -> false. */
+function csv_score(string $v) {
+  $v = trim($v);
+  if ($v === '' || $v === '-' || strcasecmp($v, 'v') === 0 || strcasecmp($v, 'tbc') === 0) return null;
+  if (preg_match('/^(\d{1,2})\s*[-:–]\s*(\d{1,2})$/u', $v, $m)) return [(int)$m[1], (int)$m[2]];
+  return false;
+}
+
+/**
+ * Add fixtures, and results, from a spreadsheet. Works with the site's own
+ * columns (Date, Time, Home, Away, Competition, Home score, Away score) and
+ * with fixture-list downloads such as fixturedownload.com (Match Number,
+ * Round Number, Date "14/08/2026 20:00", Location, Home Team, Away Team,
+ * Result "2 - 1").
+ *
+ * Re-importing an updated file is safe: a fixture already on the site (same
+ * home and away team, same competition and season) is updated - new
+ * kick-off time if it was moved, and the result once it has one - rather
+ * than added twice.
+ *
+ * Form fields: csv (the file), dry_run=1 for a preview, competition_id or
+ * competition_name for rows without a Competition column, add_to_list=1 to
+ * put the teams into that competition's team list for the season.
+ */
 function route_admin_importfixtures(): array {
   require_admin();
   $dryRun = ($_POST['dry_run'] ?? '') === '1';
-  $f = uploaded_file('csv', 1048576, 'CSV file');
+  $addToList = ($_POST['add_to_list'] ?? '1') === '1';
+  $f = uploaded_file('csv', 2097152, 'CSV file');
   $text = (string)file_get_contents($f['tmp_name']);
   $text = preg_replace('/^\xEF\xBB\xBF/', '', $text);
   if (!mb_check_encoding($text, 'UTF-8')) $text = mb_convert_encoding($text, 'UTF-8', 'Windows-1252');
@@ -956,15 +981,18 @@ function route_admin_importfixtures(): array {
   foreach ($header as $i => $h) {
     $h = strtolower(trim(preg_replace('/[^a-z ]/i', ' ', (string)$h)));
     $h = preg_replace('/\s+/', ' ', $h);
-    if (in_array($h, ['date', 'match date'], true)) $map['date'] = $i;
+    if (in_array($h, ['date', 'match date', 'date time', 'datetime'], true)) $map['date'] = $i;
     elseif (in_array($h, ['time', 'kick off time', 'ko'], true)) $map['time'] = $i;
-    elseif (in_array($h, ['kickoff', 'kick off', 'datetime', 'date time'], true)) $map['kickoff'] = $i;
+    elseif (in_array($h, ['kickoff', 'kick off'], true)) $map['kickoff'] = $i;
     elseif (in_array($h, ['home', 'home team', 'hometeam'], true)) $map['home'] = $i;
     elseif (in_array($h, ['away', 'away team', 'awayteam'], true)) $map['away'] = $i;
     elseif (in_array($h, ['competition', 'comp', 'tournament', 'cup', 'league'], true)) $map['competition'] = $i;
+    elseif (in_array($h, ['result', 'score', 'ft', 'full time', 'final score'], true)) $map['result'] = $i;
+    elseif (in_array($h, ['home score', 'home goals', 'hg', 'fthg'], true)) $map['hs'] = $i;
+    elseif (in_array($h, ['away score', 'away goals', 'ag', 'ftag'], true)) $map['as'] = $i;
   }
   if (!isset($map['home'], $map['away']) || (!isset($map['date']) && !isset($map['kickoff']))) {
-    fail(422, 'The first row must name the columns: Date, Time, Home, Away (or Kickoff, Home, Away).');
+    fail(422, 'The first row must name the columns: Date, Time, Home, Away (or Kickoff, Home, Away). Fixture downloads with Date, Home Team, Away Team and Result also work.');
   }
 
   $compByName = [];
@@ -972,82 +1000,168 @@ function route_admin_importfixtures(): array {
     $compByName[mb_strtolower($c['name'])] = $c['id'];
     $compByName[mb_strtolower($c['short'])] = $compByName[mb_strtolower($c['short'])] ?? $c['id'];
   }
-  $newComps = [];
-  $existing = [];
-  foreach (q('SELECT matchdate, hometeam, awayteam FROM ' . t('matches') . ' WHERE lid = ?', [lid()]) as $m) {
-    $existing[substr($m['matchdate'], 0, 16) . '|' . mb_strtolower(clean_text($m['hometeam'])) . '|' . mb_strtolower(clean_text($m['awayteam']))] = true;
+  // The competition for rows without a Competition column.
+  $defaultComp = '';
+  $cidIn = (int)($_POST['competition_id'] ?? 0);
+  if ($cidIn) {
+    $c = competition_by_id($cidIn);
+    if (!$c) fail(404, 'That competition no longer exists.');
+    $defaultComp = $c['name'];
+  } elseif (trim((string)($_POST['competition_name'] ?? '')) !== '') {
+    $defaultComp = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$_POST['competition_name'])), 0, 40);
   }
 
+  // Fixtures already on the site, by home and away team.
+  $cmap = competition_map();
+  $byPair = [];
+  foreach (q('SELECT matchid, matchdate, hometeam, awayteam, homescore, awayscore FROM ' . t('matches') . ' WHERE lid = ?', [lid()]) as $m) {
+    $byPair[mb_strtolower(trim($m['hometeam'])) . '|' . mb_strtolower(trim($m['awayteam']))][] = $m;
+  }
+  $sameSeason = function (string $a, string $b): bool {
+    $sa = season_for_date($a);
+    $sb = season_for_date($b);
+    if ($sa || $sb) return $sa && $sb && $sa['id'] === $sb['id'];
+    return abs(strtotime($a) - strtotime($b)) < 120 * 86400;  // no seasons set up: within about four months
+  };
+
+  $now = now_str();
+  $newComps = [];
   $rows = [];
+  $claimed = [];
   $line = 1;
   while (($r = fgetcsv($fh, 0, $delim, '"', '')) !== false) {
     $line++;
     if ($r === [null] || !array_filter($r, fn($c) => trim((string)$c) !== '')) continue;
-    if (count($rows) >= 500) fail(422, 'Import 500 fixtures or fewer at a time.');
+    if (count($rows) >= 2000) fail(422, 'Import 2,000 fixtures or fewer at a time.');
     $cell = fn($k) => isset($map[$k]) ? trim((string)($r[$map[$k]] ?? '')) : '';
-    $home = $cell('home');
-    $away = $cell('away');
     if (isset($map['kickoff'])) {
       $parts = preg_split('/[ T]+/', $cell('kickoff'), 2);
       $kickoff = csv_kickoff($parts[0] ?? '', $parts[1] ?? '');
     } else {
-      $kickoff = csv_kickoff($cell('date'), $cell('time'));
+      $date = $cell('date');
+      $time = $cell('time');
+      if ($time === '' && preg_match('/^(\S+)[ T]+(\d{1,2}[:.]\d{2}(?::\d{2})?)$/', $date, $dm)) [$date, $time] = [$dm[1], $dm[2]];
+      $kickoff = csv_kickoff($date, $time);
     }
-    $compName = mb_substr(trim(preg_replace('/\s+/u', ' ', $cell('competition'))), 0, 40);
-    $row = ['line' => $line, 'kickoff' => $kickoff ? "$kickoff:00" : null, 'home_team' => $home, 'away_team' => $away,
-            'competition' => $compName, 'status' => 'ok', 'note' => ''];
+    $compName = mb_substr(trim(preg_replace('/\s+/u', ' ', $cell('competition'))), 0, 40) ?: $defaultComp;
+    $score = isset($map['result']) ? csv_score($cell('result'))
+      : ((isset($map['hs']) && $cell('hs') !== '' && $cell('as') !== '') ? csv_score($cell('hs') . '-' . $cell('as')) : null);
+    $row = ['line' => $line, 'kickoff' => $kickoff ? "$kickoff:00" : null, 'home_team' => $cell('home'), 'away_team' => $cell('away'),
+            'competition' => $compName, 'result' => is_array($score) ? $score : null, 'status' => 'new', 'note' => '', 'id' => null, 'changes' => []];
     if ($compName !== '' && !isset($compByName[mb_strtolower($compName)])) {
       $newComps[mb_strtolower($compName)] = $compName;
-      $row['note'] = "New competition \"$compName\" will be added.";
     }
     try {
       if (!$kickoff) fail(422, 'Date or time not recognised. Use 26/12/2026 and 15:00.');
+      if ($score === false) fail(422, 'Result not recognised. Use 2 - 1, or leave it empty.');
       $cid = $compName !== '' ? ($compByName[mb_strtolower($compName)] ?? null) : null;
-      [, $home, $away] = fixture_fields(['kickoff' => $kickoff, 'home_team' => $home, 'away_team' => $away, 'competition_id' => $cid]);
+      // With "add teams to the list", any team is fine: it's added to the competition for that season.
+      [, $home, $away] = fixture_fields(['kickoff' => $kickoff, 'home_team' => $row['home_team'], 'away_team' => $row['away_team'],
+                                          'competition_id' => $addToList ? null : $cid]);
       $row['home_team'] = $home;
       $row['away_team'] = $away;
-      $key = $kickoff . '|' . mb_strtolower($home) . '|' . mb_strtolower($away);
-      if (isset($existing[$key])) {
-        $row['status'] = 'duplicate';
-        $row['note'] = 'Already added, will be skipped.';
+      $when = "$kickoff:00";
+      if ($score && $when > $now) {
+        $row['result'] = null;
+        $row['note'] = 'Has a result but hasn\'t kicked off yet, so the result is ignored. ';
       }
-      $existing[$key] = true;
+      // Already on the site? Same teams, same competition, same season.
+      $match = null;
+      foreach ($byPair[mb_strtolower($home) . '|' . mb_strtolower($away)] ?? [] as $m) {
+        if (isset($claimed[(int)$m['matchid']])) continue;
+        $mComp = $cmap[(int)$m['matchid']] ?? null;
+        if (substr((string)$m['matchdate'], 0, 16) === $kickoff || ($mComp === $cid && $sameSeason((string)$m['matchdate'], $when))) { $match = $m; break; }
+      }
+      if ($match) {
+        $claimed[(int)$match['matchid']] = true;
+        $row['id'] = (int)$match['matchid'];
+        if (substr((string)$match['matchdate'], 0, 16) !== $kickoff) $row['changes'][] = 'kick-off moved from ' . date('D j M H:i', strtotime((string)$match['matchdate']));
+        $had = $match['homescore'] !== null ? [(int)$match['homescore'], (int)$match['awayscore']] : null;
+        if ($row['result'] && $row['result'] !== $had) $row['changes'][] = $had ? "result changed from {$had[0]}-{$had[1]}" : 'result added';
+        if (!$row['result'] && $had && $when <= $now) $row['note'] .= 'The site already has a result for this match; it\'s kept. ';
+        if ((($cmap[(int)$match['matchid']] ?? null) !== $cid) && $cid !== null) $row['changes'][] = 'put into ' . $compName;
+        $row['status'] = $row['changes'] ? 'update' : 'same';
+      } elseif ($when < $now && !$row['result']) {
+        $row['note'] .= 'Already kicked off, with no result. ';
+      }
     } catch (ApiError $e) {
       $row['status'] = 'error';
       $row['note'] = $e->getMessage();
     }
+    $row['note'] = trim($row['note']);
     $rows[] = $row;
   }
   fclose($fh);
   if (!$rows) fail(422, 'That file has no fixtures under the header row.');
 
-  $ok = array_values(array_filter($rows, fn($r) => $r['status'] === 'ok'));
-  $errors = array_values(array_filter($rows, fn($r) => $r['status'] === 'error'));
+  $count = fn($st) => count(array_filter($rows, fn($r) => $r['status'] === $st));
+  $results = count(array_filter($rows, fn($r) => $r['status'] !== 'error' && $r['result'] && ($r['status'] === 'new' || in_array(true, array_map(fn($c) => str_starts_with($c, 'result'), $r['changes']), true))));
+  $summary = ['new' => $count('new'), 'updates' => $count('update'), 'same' => $count('same'), 'errors' => $count('error'), 'results' => $results];
   if ($dryRun) {
-    return ['rows' => $rows, 'ok' => count($ok), 'duplicates' => count($rows) - count($ok) - count($errors), 'errors' => count($errors),
-            'new_competitions' => array_values($newComps)];
+    $out = array_map(fn($r) => array_diff_key($r, ['id' => 1]) + ['changes' => $r['changes']], $rows);
+    return ['rows' => $out, 'new_competitions' => array_values($newComps), 'competition' => $defaultComp] + $summary
+      // older pages read these
+      + ['ok' => $summary['new'], 'duplicates' => $summary['same'], 'errors' => $summary['errors']];
   }
-  if ($errors) {
-    fail(422, 'Fix the rows with problems first. Line ' . $errors[0]['line'] . ': ' . $errors[0]['note']);
-  }
-  competition_map();  // create the tables before the transaction
+  $errors = array_values(array_filter($rows, fn($r) => $r['status'] === 'error'));
+  if ($errors) fail(422, 'Fix the rows with problems first. Line ' . $errors[0]['line'] . ': ' . $errors[0]['note']);
+
+  // Create what's needed before the transaction (MySQL commits on CREATE TABLE).
   $needed = [];
-  foreach ($ok as $r) if ($r['competition'] !== '' && !isset($compByName[mb_strtolower($r['competition'])])) $needed[mb_strtolower($r['competition'])] = $r['competition'];
-  foreach ($needed as $key => $name) {
-    $compByName[$key] = add_competition($name, '');
-  }
+  foreach ($rows as $r) if ($r['competition'] !== '' && !isset($compByName[mb_strtolower($r['competition'])])) $needed[mb_strtolower($r['competition'])] = $r['competition'];
+  foreach ($needed as $key => $name) $compByName[$key] = add_competition($name, '');
   teams_map();
+  with_table('compteams', fn() => q('SELECT 1 FROM ' . xt('compteams') . ' WHERE 1 = 0'));
+
   $pdo = db();
   $pdo->beginTransaction();
-  foreach ($ok as $r) {
-    q('INSERT INTO ' . t('matches') . ' (lid, matchdate, hometeam, awayteam) VALUES (?, ?, ?, ?)', [lid(), $r['kickoff'], $r['home_team'], $r['away_team']]);
+  $added = $updated = $resultsSet = 0;
+  $lists = [];  // seasonid|compid => team names to put in the competition's list
+  foreach ($rows as $r) {
     $cid = $r['competition'] !== '' ? $compByName[mb_strtolower($r['competition'])] : null;
-    set_match_competition((int)$pdo->lastInsertId(), $cid);
-    register_teams([$r['home_team'], $r['away_team']]);
+    if ($r['status'] === 'new') {
+      q('INSERT INTO ' . t('matches') . ' (lid, matchdate, hometeam, awayteam, homescore, awayscore) VALUES (?, ?, ?, ?, ?, ?)',
+        [lid(), $r['kickoff'], $r['home_team'], $r['away_team'], $r['result'][0] ?? null, $r['result'][1] ?? null]);
+      set_match_competition((int)$pdo->lastInsertId(), $cid);
+      $added++;
+      if ($r['result']) $resultsSet++;
+    } elseif ($r['status'] === 'update') {
+      q('UPDATE ' . t('matches') . ' SET matchdate = ? WHERE lid = ? AND matchid = ?', [$r['kickoff'], lid(), $r['id']]);
+      if ($r['result']) {
+        q('UPDATE ' . t('matches') . ' SET homescore = ?, awayscore = ? WHERE lid = ? AND matchid = ?', [$r['result'][0], $r['result'][1], lid(), $r['id']]);
+        $resultsSet++;
+      }
+      if ($cid !== null) set_match_competition($r['id'], $cid);
+      $updated++;
+    }
+    if ($r['status'] !== 'error') {
+      register_teams([$r['home_team'], $r['away_team']]);
+      $season = season_for_date((string)$r['kickoff']);
+      if ($addToList && $cid && $season) {
+        $lists[$season['id'] . '|' . $cid][$r['home_team']] = true;
+        $lists[$season['id'] . '|' . $cid][$r['away_team']] = true;
+      }
+    }
+  }
+  $listed = 0;
+  foreach ($lists as $key => $names) {
+    [$sid, $cid] = array_map('intval', explode('|', $key));
+    $have = comp_team_ids($sid, $cid);
+    foreach (array_keys($names) as $name) {
+      $t = team_named($name);
+      if (!$t || in_array($t['id'], $have, true)) continue;
+      q('INSERT INTO ' . xt('compteams') . ' (seasonid, compid, teamid) VALUES (?, ?, ?)', [$sid, $cid, $t['id']]);
+      $have[] = $t['id'];
+      $listed++;
+    }
   }
   $pdo->commit();
-  log_event('fixtures_import', 'Imported ' . count($ok) . ' fixtures from ' . mb_substr(basename((string)$f['name']), 0, 80));
-  return ['added' => count($ok), 'skipped' => count($rows) - count($ok)];
+  competition_map(true);
+  if ($resultsSet || $updated) save_standings(compute_standings());
+  log_event('fixtures_import', "Imported " . mb_substr(basename((string)$f['name']), 0, 60) . ": $added new, $updated updated, $resultsSet results"
+    . ($listed ? ", $listed teams added to team lists" : ''));
+  return ['added' => $added, 'updated' => $updated, 'results' => $resultsSet, 'teams_listed' => $listed,
+          'skipped' => count($rows) - $added - $updated];
 }
 
 // ---------------------------------------------------------------------

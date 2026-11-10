@@ -1664,12 +1664,21 @@
         </p>
       </section>
       <section class="data-section">
-        <h2>Add fixtures from a spreadsheet</h2>
-        <p>Save the sheet as CSV with these column headings in the first row: <strong>Date, Time, Home, Away</strong>.
-          Dates like 26/12/2026 or 2026-12-26 and times like 15:00 both work. Fixtures that already exist are skipped.
-          Add a <strong>Competition</strong> column to sort them into competitions; new competition names are added for you.</p>
-        <form id="import-form" class="actions">
-          <label class="btn quiet small file-btn">Choose a CSV file<input type="file" name="csv" accept=".csv,text/csv" class="visually-hidden"></label>
+        <h2>Import fixtures and results from a spreadsheet</h2>
+        <p>Use a CSV file with these column headings in the first row: <strong>Date, Time, Home, Away</strong>, and optionally
+          <strong>Competition</strong> and <strong>Result</strong> (like 2 - 1). Fixture downloads such as fixturedownload.com's
+          (Date, Home Team, Away Team, Result) work as they are. Dates like 26/12/2026 15:00 or 2026-12-26 both work.</p>
+        <p class="muted">Importing an updated copy of the same file is safe: fixtures already here get their new kick-off time and results instead of being added twice.
+          You'll see what will change before anything is saved.</p>
+        <form id="import-form" class="stack wide-form">
+          <label>Competition<span class="hint">For rows without a Competition column.</span>
+            <select name="competition_id"><option value="">None</option>
+              ${(state.settings.competitions || []).map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}
+              <option value="new">A new competition…</option></select></label>
+          <label hidden data-new-comp>New competition's name<input type="text" name="competition_name" maxlength="40" placeholder="Championship"></label>
+          <label class="check"><input type="checkbox" name="add_to_list" checked><span>Add the teams to the competition's team list for each season
+            <span class="hint">So fixtures you add by hand later only suggest these teams.</span></span></label>
+          <div><label class="btn quiet file-btn">Choose a CSV file<input type="file" name="csv" accept=".csv,text/csv" class="visually-hidden"></label></div>
         </form>
         <div id="import-preview"></div>
       </section>
@@ -1702,32 +1711,62 @@
 
     const importForm = document.getElementById('import-form');
     const preview = document.getElementById('import-preview');
-    importForm.csv.addEventListener('change', async () => {
-      const file = importForm.csv.files[0];
-      if (!file) return;
+    const importData = (file, dry) => {
       const fd = new FormData();
       fd.append('csv', file);
-      fd.append('dry_run', '1');
+      if (dry) fd.append('dry_run', '1');
+      const comp = importForm.competition_id.value;
+      if (comp === 'new') fd.append('competition_name', importForm.competition_name.value.trim());
+      else if (comp) fd.append('competition_id', comp);
+      fd.append('add_to_list', importForm.add_to_list.checked ? '1' : '0');
+      return fd;
+    };
+    const runPreview = async () => {
+      const file = importForm.csv.files[0];
+      if (!file) return;
+      if (importForm.competition_id.value === 'new' && !importForm.competition_name.value.trim()) {
+        formError(importForm, 'Type the new competition\'s name first.');
+        importForm.csv.value = '';
+        return;
+      }
+      preview.innerHTML = '<p class="muted">Reading the file…</p>';
       try {
-        const res = await api('admin.importfixtures', { form: fd });
-        const label = { ok: 'Will be added', duplicate: 'Skipped', error: 'Problem' };
-        preview.innerHTML = `<p><strong>${esc(plural(res.ok, 'fixture'))} to add</strong>${res.duplicates ? `, ${esc(plural(res.duplicates, 'duplicate'))} skipped` : ''}${res.errors ? `, <span class="error">${esc(plural(res.errors, 'row'))} with problems</span>` : ''}.</p>
-          <div class="table-wrap"><table class="league preview"><thead><tr><th scope="col">Line</th><th scope="col" class="name">Fixture</th><th scope="col">Kick-off</th><th scope="col" class="name">Status</th></tr></thead><tbody>
-          ${res.rows.map((r) => `<tr class="st-${r.status}"><td>${r.line}</td><td class="name">${r.competition ? `<span class="comp-tag">${esc(r.competition)}</span>` : ''}${esc(r.home_team)} v ${esc(r.away_team)}</td>
-            <td>${r.kickoff ? esc(fmtShort(r.kickoff)) : '–'}</td><td class="name">${esc(label[r.status])}${r.note ? `: ${esc(r.note)}` : ''}</td></tr>`).join('')}
-          </tbody></table></div>
+        const res = await api('admin.importfixtures', { form: importData(file, true) });
+        const label = { new: 'New', update: 'Update', same: 'No change', error: 'Problem' };
+        const parts = [];
+        if (res.new) parts.push(`<strong>${esc(plural(res.new, 'new fixture'))}</strong>`);
+        if (res.updates) parts.push(`<strong>${esc(plural(res.updates, 'fixture'))} to update</strong>`);
+        if (res.results) parts.push(`${esc(plural(res.results, 'result'))} to save`);
+        if (res.same) parts.push(`${esc(plural(res.same, 'fixture'))} already up to date`);
+        if (res.errors) parts.push(`<span class="error">${esc(plural(res.errors, 'row'))} with problems</span>`);
+        const changing = res.new + res.updates;
+        // Problems and changes first; unchanged rows are folded away.
+        const order = { error: 0, update: 1, new: 2, same: 3 };
+        const rows = [...res.rows].sort((x, y) => order[x.status] - order[y.status] || x.line - y.line);
+        const shown = rows.filter((r) => r.status !== 'same');
+        const rowHtml = (r) => `<tr class="st-${r.status}"><td>${r.line}</td>
+            <td class="name">${r.competition ? `<span class="comp-tag">${esc(r.competition)}</span>` : ''}${esc(r.home_team)} v ${esc(r.away_team)}</td>
+            <td>${r.kickoff ? esc(fmtShort(r.kickoff)) : '–'}</td><td>${r.result ? `${r.result[0]}–${r.result[1]}` : ''}</td>
+            <td class="name">${esc(label[r.status])}${r.changes && r.changes.length ? `: ${esc(r.changes.join(', '))}` : ''}${r.note ? ` <span class="muted">${esc(r.note)}</span>` : ''}</td></tr>`;
+        const head = '<thead><tr><th scope="col">Line</th><th scope="col" class="name">Fixture</th><th scope="col">Kick-off</th><th scope="col">Result</th><th scope="col" class="name">What happens</th></tr></thead>';
+        preview.innerHTML = `<p>${parts.join(', ')}.</p>
+          ${res.new_competitions && res.new_competitions.length ? `<p>New ${res.new_competitions.length === 1 ? 'competition' : 'competitions'} to add: <strong>${res.new_competitions.map(esc).join(', ')}</strong>.</p>` : ''}
           ${res.errors ? '<p class="muted">Fix those rows in the spreadsheet and choose the file again.</p>'
-            : res.ok ? `${res.new_competitions && res.new_competitions.length ? `<p>New ${res.new_competitions.length === 1 ? 'competition' : 'competitions'} to add: <strong>${res.new_competitions.map(esc).join(', ')}</strong>.</p>` : ''}
-              <p><button class="btn" type="button" id="do-import">Add ${esc(plural(res.ok, 'fixture'))}</button></p>` : ''}`;
+            : changing ? `<p><button class="btn" type="button" id="do-import">Import: ${esc([res.new ? plural(res.new, 'new fixture') : '', res.updates ? plural(res.updates, 'update') : ''].filter(Boolean).join(' and '))}</button></p>`
+            : '<p class="muted">Nothing to change: everything in this file is already on the site.</p>'}
+          ${shown.length ? `<div class="table-wrap import-table"><table class="league preview">${head}<tbody>${shown.map(rowHtml).join('')}</tbody></table></div>` : ''}
+          ${res.same ? `<details class="same-rows"><summary>${esc(plural(res.same, 'fixture'))} with no change</summary>
+            <div class="table-wrap import-table"><table class="league preview">${head}<tbody>${rows.filter((r) => r.status === 'same').map(rowHtml).join('')}</tbody></table></div></details>` : ''}`;
         const go = document.getElementById('do-import');
         if (go) go.addEventListener('click', async () => {
-          const real = new FormData();
-          real.append('csv', file);
           try {
-            const done = await submitting(go, () => api('admin.importfixtures', { form: real }));
+            const done = await submitting(go, () => api('admin.importfixtures', { form: importData(file, false) }));
             await refreshSession();
-            toast(`Added ${plural(done.added, 'fixture')}.`);
-            preview.innerHTML = `<p>Added ${esc(plural(done.added, 'fixture'))}. <a href="#/admin/fixtures">See fixtures</a>.</p>`;
+            const msg = [done.added ? `added ${plural(done.added, 'fixture')}` : '', done.updated ? `updated ${plural(done.updated, 'fixture')}` : '',
+              done.results ? `saved ${plural(done.results, 'result')}` : ''].filter(Boolean).join(', ');
+            toast(`Imported: ${msg}.`);
+            preview.innerHTML = `<p>Done: ${esc(msg)}${done.teams_listed ? `, and put ${esc(plural(done.teams_listed, 'team'))} into team lists` : ''}.
+              <a href="#/admin/results">Results</a> · <a href="#/standings">League tables</a></p>`;
             importForm.csv.value = '';
           } catch (err) { toast(err.message, true); }
         });
@@ -1735,7 +1774,13 @@
         preview.innerHTML = `<p class="error">${esc(err.message)}</p>`;
         importForm.csv.value = '';
       }
+    };
+    importForm.csv.addEventListener('change', runPreview);
+    importForm.competition_id.addEventListener('change', () => {
+      importForm.querySelector('[data-new-comp]').hidden = importForm.competition_id.value !== 'new';
+      if (importForm.csv.files[0]) runPreview();
     });
+    importForm.add_to_list.addEventListener('change', () => { if (importForm.csv.files[0]) runPreview(); });
 
     const restore = document.getElementById('restore-form');
     restore.addEventListener('submit', async (e) => {

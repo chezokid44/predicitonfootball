@@ -107,6 +107,15 @@ settings carry over.
   one wins. Pages can show a
   small table with `[[standings PL]]`. Existing sites with a saved menu can
   add "League tables" in Admin > Pages > Menu.
+- Import fixtures and results (Admin > Data): from a CSV with Date, Time,
+  Home, Away and optionally Competition and Result columns, or a fixture-list
+  download such as fixturedownload.com's (Date "14/08/2026 20:00", Home Team,
+  Away Team, Result "2 - 1"). Choose the competition for files without a
+  Competition column (or make a new one), and optionally add the teams to its
+  team list for the season. A preview shows what's new, what changes and any
+  problems before anything is saved. Re-importing an updated copy of the file
+  updates fixtures already on the site (moved kick-off times, new or corrected
+  results) instead of adding them again; up to 2,000 rows at a time.
 - A web installer for new servers
 
 ## Files

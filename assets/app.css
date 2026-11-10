@@ -753,3 +753,9 @@ table.teams tr.place-edge td { border-top: 2px solid var(--ink-soft); }
 .admin-item .pick { display: flex; align-items: center; padding-right: 4px; }
 .admin-item .pick input { width: 1.2rem; height: 1.2rem; accent-color: var(--coupon); }
 .admin-item:has([data-pick]:checked) { background: color-mix(in srgb, var(--coupon) 8%, transparent); }
+.import-table { max-height: 32rem; overflow: auto; }
+.import-table table.preview td { white-space: normal; }
+table.preview tr.st-update td:last-child { color: var(--ink); }
+table.preview tr.st-new td:last-child { color: #1d7a46; }
+.same-rows { margin-top: 10px; }
+.same-rows summary { cursor: pointer; font-weight: 600; }
