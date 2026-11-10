@@ -751,7 +751,7 @@ function extra_table_sql(string $name, string $driver): string {
   }
   if ($name === 'comps') {
     return $driver === 'sqlite'
-      ? "CREATE TABLE IF NOT EXISTS {$tables['comps']} (compid INTEGER PRIMARY KEY AUTOINCREMENT, lid INT NOT NULL DEFAULT 0, name VARCHAR(40) NOT NULL, short_name VARCHAR(8) NOT NULL DEFAULT '', position INT NOT NULL DEFAULT 0, table_type VARCHAR(10) NOT NULL DEFAULT 'league', zone_top INT NOT NULL DEFAULT 0, zone_mid INT NOT NULL DEFAULT 0, zone_bottom INT NOT NULL DEFAULT 0)"
+      ? "CREATE TABLE IF NOT EXISTS {$tables['comps']} (compid INTEGER PRIMARY KEY AUTOINCREMENT, lid INT NOT NULL DEFAULT 0, name VARCHAR(40) NOT NULL, short_name VARCHAR(8) NOT NULL DEFAULT '', position INT NOT NULL DEFAULT 0, table_type VARCHAR(10) NOT NULL DEFAULT 'league', places TEXT)"
       : "CREATE TABLE IF NOT EXISTS `{$tables['comps']}` (
           `compid` INT NOT NULL AUTO_INCREMENT,
           `lid` INT NOT NULL DEFAULT 0,
@@ -759,9 +759,7 @@ function extra_table_sql(string $name, string $driver): string {
           `short_name` VARCHAR(8) NOT NULL DEFAULT '',
           `position` INT NOT NULL DEFAULT 0,
           `table_type` VARCHAR(10) NOT NULL DEFAULT 'league',
-          `zone_top` INT NOT NULL DEFAULT 0,
-          `zone_mid` INT NOT NULL DEFAULT 0,
-          `zone_bottom` INT NOT NULL DEFAULT 0,
+          `places` TEXT,
           PRIMARY KEY (`compid`),
           KEY `idx_lid` (`lid`, `position`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
@@ -1023,7 +1021,7 @@ function competitions(bool $reload = false): array {
     $list = array_map(fn($r) => ['id' => (int)$r['compid'], 'name' => (string)$r['name'],
       'short' => (string)$r['short_name'] !== '' ? (string)$r['short_name'] : (string)$r['name'], 'position' => (int)$r['position'],
       'has_table' => ($r['table_type'] ?? 'league') !== 'cup',
-      'zones' => ['top' => (int)($r['zone_top'] ?? 0), 'mid' => (int)($r['zone_mid'] ?? 0), 'bottom' => (int)($r['zone_bottom'] ?? 0)]], $rows);
+      'places' => comp_places($r)], $rows);
   }
   return $list;
 }
@@ -1035,14 +1033,50 @@ function ensure_comp_columns(): void {
   $checked = true;
   with_table('comps', function () {
     try {
-      q('SELECT table_type, zone_top, zone_mid, zone_bottom FROM ' . xt('comps') . ' WHERE 1 = 0');
+      q('SELECT table_type, places FROM ' . xt('comps') . ' WHERE 1 = 0');
     } catch (PDOException $e) {
       if (stripos($e->getMessage(), 'no such table') !== false || $e->getCode() === '42S02') throw $e;
-      foreach (["table_type VARCHAR(10) NOT NULL DEFAULT 'league'", 'zone_top INT NOT NULL DEFAULT 0', 'zone_mid INT NOT NULL DEFAULT 0', 'zone_bottom INT NOT NULL DEFAULT 0'] as $col) {
+      foreach (["table_type VARCHAR(10) NOT NULL DEFAULT 'league'", 'places TEXT'] as $col) {
         try { db()->exec('ALTER TABLE ' . xt('comps') . " ADD COLUMN $col"); } catch (PDOException $e2) { /* already there */ }
       }
     }
   });
+}
+
+const PLACE_COLOURS = ['green', 'darkgreen', 'blue', 'teal', 'purple', 'amber', 'orange', 'red', 'grey'];
+
+/**
+ * A league table's marked places: a list of
+ * {from, to, from_bottom, label, colour}, e.g. 1-4 "Champions League" (green)
+ * or bottom 1-3 "Relegation" (red). Reads the older top/next/bottom counts too.
+ */
+function comp_places(array $r): array {
+  $saved = json_decode((string)($r['places'] ?? ''), true);
+  if (is_array($saved)) return clean_places($saved);
+  $out = [];
+  $top = (int)($r['zone_top'] ?? 0);
+  $mid = (int)($r['zone_mid'] ?? 0);
+  $bottom = (int)($r['zone_bottom'] ?? 0);
+  if ($top) $out[] = ['from' => 1, 'to' => $top, 'from_bottom' => false, 'label' => 'Top places', 'colour' => 'green'];
+  if ($mid) $out[] = ['from' => $top + 1, 'to' => $top + $mid, 'from_bottom' => false, 'label' => 'Next places', 'colour' => 'blue'];
+  if ($bottom) $out[] = ['from' => 1, 'to' => $bottom, 'from_bottom' => true, 'label' => 'Bottom places', 'colour' => 'red'];
+  return $out;
+}
+
+/** Check a list of places from the admin form (or a backup). */
+function clean_places($list): array {
+  $out = [];
+  foreach (is_array($list) ? array_slice($list, 0, 12) : [] as $p) {
+    if (!is_array($p)) continue;
+    $from = (int)($p['from'] ?? 0);
+    $to = (int)($p['to'] ?? $from);
+    if ($from < 1 || $from > 60) continue;
+    $to = max($from, min(60, $to));
+    $label = trim(preg_replace('/\s+/u', ' ', mb_substr((string)($p['label'] ?? ''), 0, 40)));
+    $colour = in_array($p['colour'] ?? '', PLACE_COLOURS, true) ? $p['colour'] : 'grey';
+    $out[] = ['from' => $from, 'to' => $to, 'from_bottom' => !empty($p['from_bottom']), 'label' => $label, 'colour' => $colour];
+  }
+  return $out;
 }
 
 /** matchid => compid for every categorised fixture. */

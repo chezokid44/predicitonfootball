@@ -103,7 +103,7 @@ function route_teamtable(): array {
   $season = requested_season();
   return [
     'competitions' => array_map(fn($c) => ['id' => $c['id'], 'name' => $c['name'], 'short' => $c['short']], $comps),
-    'competition' => $comp ? ['id' => $comp['id'], 'name' => $comp['name'], 'short' => $comp['short'], 'zones' => $comp['zones']] : null,
+    'competition' => $comp ? ['id' => $comp['id'], 'name' => $comp['name'], 'short' => $comp['short'], 'places' => $comp['places']] : null,
     'season' => season_brief($season),
     'table' => $comp ? team_standings($comp['id'], $season) : [],
   ];

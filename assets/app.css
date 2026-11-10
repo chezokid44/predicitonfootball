@@ -705,29 +705,44 @@ main.banned { max-width: 34rem; margin: 15vh auto; padding: 0 16px; font-family:
 table.teams .team-cell { display: inline-flex; align-items: center; gap: 8px; }
 table.teams .crest { width: 22px; height: 22px; }
 table.teams .tshort { display: none; text-decoration: none; }
-table.teams tr.zone-top td.pos { box-shadow: inset 4px 0 0 #1d7a46; }
-table.teams tr.zone-mid td.pos { box-shadow: inset 4px 0 0 #2f6db5; }
-table.teams tr.zone-bottom td.pos { box-shadow: inset 4px 0 0 var(--coupon); }
-table.teams tr.zone-top + tr:not(.zone-top) td, table.teams tr.zone-mid + tr:not(.zone-mid):not(.zone-top) td { border-top: 2px solid var(--ink-soft); }
-table.teams tr:not(.zone-bottom) + tr.zone-bottom td { border-top: 2px dashed var(--coupon); }
+:root { --zc-green: #1d7a46; --zc-darkgreen: #0f5132; --zc-blue: #2f6db5; --zc-teal: #13838f; --zc-purple: #6f42c1; --zc-amber: #c99a06; --zc-orange: #d9661f; --zc-red: #C4122F; --zc-grey: #7d8794; }
+.zc-green { --zc: var(--zc-green); } .zc-darkgreen { --zc: var(--zc-darkgreen); } .zc-blue { --zc: var(--zc-blue); }
+.zc-teal { --zc: var(--zc-teal); } .zc-purple { --zc: var(--zc-purple); } .zc-amber { --zc: var(--zc-amber); }
+.zc-orange { --zc: var(--zc-orange); } .zc-red { --zc: var(--zc-red); } .zc-grey { --zc: var(--zc-grey); }
+table.teams tr[class*="zc-"] td.pos { box-shadow: inset 4px 0 0 var(--zc); }
+table.teams tr.place-edge td { border-top: 2px solid var(--ink-soft); }
 .form-chips { display: inline-flex; gap: 3px; }
 .chip { display: inline-grid; place-items: center; width: 20px; height: 20px; font: 700 0.72rem/1 var(--display); color: #fff; border-radius: 2px; }
 .chip.w { background: #1d7a46; }
 .chip.d { background: #7d8794; }
 .chip.l { background: var(--coupon); }
-.zone-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; }
+.zone-legend { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--ink-soft); }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
-.swatch { width: 12px; height: 12px; display: inline-block; }
-.swatch.zone-top { background: #1d7a46; }
-.swatch.zone-mid { background: #2f6db5; }
-.swatch.zone-bottom { background: var(--coupon); }
+.legend-item strong { color: var(--ink); font-weight: 600; }
+.swatch { width: 12px; height: 12px; display: inline-block; flex: none; background: var(--zc, var(--zc-grey)); }
 .widget-title { margin: 0 0 8px; }
-.zone-fields { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 9rem)); gap: 10px; }
-.zone-fields legend { grid-column: 1 / -1; font-weight: 600; margin-bottom: 4px; padding: 0; }
-.zone-fields[disabled] { opacity: 0.55; }
+.places-editor { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; min-width: 0; }
+.places-editor legend { font-weight: 600; margin-bottom: 4px; padding: 0; }
+.places-editor[disabled] { opacity: 0.55; }
+.place-rows { display: grid; gap: 8px; }
+.place-row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 10px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--rule); }
+.place-row label { font-size: 0.9rem; }
+.place-row input[type=number] { width: 4.5rem; }
+.place-row select { width: auto; }
+.place-row .grow { flex: 1; min-width: 11rem; }
+.colour-pick { display: flex; align-items: center; gap: 6px; }
+.colour-pick .swatch { width: 18px; height: 18px; }
+.place-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.place-tools select { width: auto; }
 .comp-edit { display: grid; gap: 10px; flex: 1; }
 @media (max-width: 640px) {
   table.teams .form-col { display: none; }
   table.teams .tname { display: none; }
   table.teams .tshort { display: inline; }
 }
+#comp-form { max-width: 48rem; }
+#comp-form > label { max-width: 26rem; }
+.places-editor legend .hint, .zone-legend .hint { display: block; font-weight: 400; color: var(--ink-soft); margin-top: 2px; }
+.place-row { flex-wrap: wrap; }
+.place-row [data-remove-place] { margin-left: auto; }
+.place-tools [data-preset] { max-width: 18rem; }

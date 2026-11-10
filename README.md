@@ -92,8 +92,13 @@ settings carry over.
   results. One table per season (players pick the season); teams in the
   competition's team list appear before they've played. In Admin >
   Competitions, set a competition's type to League or Cup (cups have no table)
-  and, optionally, how many top, next and bottom places are coloured (for
-  example 4 Champions League, 2 Europa League, 3 relegation). Pages can show a
+  and what the positions mean: any number of lines, each a range of positions
+  counted from the top or the bottom, with a label and a colour (for example
+  1st Champions in yellow, 2nd to 4th Champions League in green, 5th Europa
+  League in blue, bottom 3 Relegation in red). Presets fill in the usual
+  Premier League, Championship and League Two lines. The table shows a coloured
+  bar for each position and a key underneath; where lines overlap, the first
+  one wins. Pages can show a
   small table with `[[standings PL]]`. Existing sites with a saved menu can
   add "League tables" in Admin > Pages > Menu.
 - A web installer for new servers

@@ -666,7 +666,7 @@ function route_admin_export(): array {
     }
   }
   ensure_comp_columns();
-  $tables['competitions'] = with_table('comps', fn() => q('SELECT compid, name, short_name, position, table_type, zone_top, zone_mid, zone_bottom FROM ' . xt('comps') . ' WHERE lid = ?', [lid()])->fetchAll());
+  $tables['competitions'] = with_table('comps', fn() => q('SELECT compid, name, short_name, position, table_type, places FROM ' . xt('comps') . ' WHERE lid = ?', [lid()])->fetchAll());
   $tables['fixture_competitions'] = with_table('matchcomp', fn() => q('SELECT matchid, compid FROM ' . xt('matchcomp') . ' WHERE lid = ?', [lid()])->fetchAll());
   ensure_prefs_columns();
   $tables['prefs'] = with_table('prefs', fn() => q('SELECT userid, allow_email, notify_messages, auto_predict, auto_since FROM ' . xt('prefs') . ' WHERE lid = ?', [lid()])->fetchAll());
@@ -732,7 +732,7 @@ function route_admin_restore(): array {
   foreach (is_array($data['tables']['competitions'] ?? null) ? $data['tables']['competitions'] : [] as $c) {
     if (is_array($c) && isset($c['compid'], $c['name'])) {
       $comps[] = [(int)$c['compid'], mb_substr((string)$c['name'], 0, 40), mb_substr((string)($c['short_name'] ?? ''), 0, 8), (int)($c['position'] ?? 0),
-                  ($c['table_type'] ?? '') === 'cup' ? 'cup' : 'league', (int)($c['zone_top'] ?? 0), (int)($c['zone_mid'] ?? 0), (int)($c['zone_bottom'] ?? 0)];
+                  ($c['table_type'] ?? '') === 'cup' ? 'cup' : 'league', json_encode(comp_places($c))];
     }
   }
   $links = [];
@@ -788,9 +788,9 @@ function route_admin_restore(): array {
   try {
     q('DELETE FROM ' . xt('matchcomp') . ' WHERE lid = ?', [lid()]);
     q('DELETE FROM ' . xt('comps') . ' WHERE lid = ?', [lid()]);
-    foreach ($comps as [$cid, $cname, $cshort, $cpos, $ctype, $ztop, $zmid, $zbot]) {
-      q('INSERT INTO ' . xt('comps') . ' (compid, lid, name, short_name, position, table_type, zone_top, zone_mid, zone_bottom) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [$cid, lid(), $cname, $cshort, $cpos, $ctype, $ztop, $zmid, $zbot]);
+    foreach ($comps as [$cid, $cname, $cshort, $cpos, $ctype, $cplaces]) {
+      q('INSERT INTO ' . xt('comps') . ' (compid, lid, name, short_name, position, table_type, places) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [$cid, lid(), $cname, $cshort, $cpos, $ctype, $cplaces]);
     }
     foreach ($links as [$lm, $lc]) {
       q('INSERT INTO ' . xt('matchcomp') . ' (lid, matchid, compid) VALUES (?, ?, ?)', [lid(), $lm, $lc]);
@@ -1090,7 +1090,7 @@ function route_admin_competition(): array {
   $name = trim(preg_replace('/\s+/u', ' ', str_in($b, 'name', 40)));
   $short = trim(str_in($b, 'short_name', 8, false));
   $id = (int)($b['id'] ?? 0);
-  $zone = fn(string $k) => max(0, min(30, (int)($b[$k] ?? 0)));
+  $places = json_encode(clean_places($b['places'] ?? []));
   $type = ($b['table_type'] ?? 'league') === 'cup' ? 'cup' : 'league';
   foreach (competitions(true) as $c) {
     if ($c['id'] !== $id && mb_strtolower($c['name']) === mb_strtolower($name)) fail(409, 'There\'s already a competition with that name.');
@@ -1098,13 +1098,13 @@ function route_admin_competition(): array {
   if ($id) {
     $old = competition_by_id($id);
     if (!$old) fail(404, 'That competition no longer exists.');
-    q('UPDATE ' . xt('comps') . ' SET name = ?, short_name = ?, table_type = ?, zone_top = ?, zone_mid = ?, zone_bottom = ? WHERE lid = ? AND compid = ?',
-      [$name, $short ?: default_short_name($name), $type, $zone('zone_top'), $zone('zone_mid'), $zone('zone_bottom'), lid(), $id]);
+    q('UPDATE ' . xt('comps') . ' SET name = ?, short_name = ?, table_type = ?, places = ? WHERE lid = ? AND compid = ?',
+      [$name, $short ?: default_short_name($name), $type, $places, lid(), $id]);
     log_event('competition', $old['name'] === $name ? "Edited competition $name" : "Renamed competition {$old['name']} to $name");
   } else {
     $newId = add_competition($name, $short);
-    q('UPDATE ' . xt('comps') . ' SET table_type = ?, zone_top = ?, zone_mid = ?, zone_bottom = ? WHERE lid = ? AND compid = ?',
-      [$type, $zone('zone_top'), $zone('zone_mid'), $zone('zone_bottom'), lid(), $newId]);
+    q('UPDATE ' . xt('comps') . ' SET table_type = ?, places = ? WHERE lid = ? AND compid = ?',
+      [$type, $places, lid(), $newId]);
     competitions(true);
   }
   return route_admin_competitions();

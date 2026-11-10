@@ -983,28 +983,76 @@
     }));
   }
 
-  function zoneText(z) {
-    const parts = [];
-    if (z.top) parts.push(`top ${z.top}`);
-    if (z.mid) parts.push(`next ${z.mid}`);
-    if (z.bottom) parts.push(`bottom ${z.bottom}`);
-    return parts.length ? ` (${parts.join(', ')} marked)` : '';
+  const PLACE_COLOURS = [['green', 'Green'], ['darkgreen', 'Dark green'], ['blue', 'Blue'], ['teal', 'Teal'], ['purple', 'Purple'],
+    ['amber', 'Yellow'], ['orange', 'Orange'], ['red', 'Red'], ['grey', 'Grey']];
+  const PLACE_PRESETS = {
+    'premier-league': ['Premier League style', [[1, 4, false, 'Champions League', 'green'], [5, 5, false, 'Europa League', 'blue'], [6, 6, false, 'Conference League', 'teal'], [1, 3, true, 'Relegation', 'red']]],
+    championship: ['Championship / League One style', [[1, 2, false, 'Promotion', 'green'], [3, 6, false, 'Play-offs', 'blue'], [1, 3, true, 'Relegation', 'red']]],
+    'league-two': ['League Two style', [[1, 3, false, 'Promotion', 'green'], [4, 7, false, 'Play-offs', 'blue'], [1, 2, true, 'Relegation', 'red']]],
+    champions: ['Champions only', [[1, 1, false, 'Champions', 'amber']]],
+  };
+  // "1st", "2nd to 4th", "bottom 3", "bottom 2 to 3"
+  function placeRange(p) {
+    if (p.from_bottom) {
+      if (p.from === 1) return p.to === 1 ? 'Bottom' : `Bottom ${p.to}`;
+      return `${ordinal(p.from)} to ${ordinal(p.to)} from bottom`;
+    }
+    return p.from === p.to ? ordinal(p.from) : `${ordinal(p.from)} to ${ordinal(p.to)}`;
   }
-  // Type and coloured places, shared by the add and edit forms.
+  function placesText(places) {
+    return places.length ? `: ${places.map((p) => `${placeRange(p)} ${p.label || p.colour}`).join(', ')}` : '';
+  }
+  function placeRowHtml(p) {
+    const v = p || { from: '', to: '', from_bottom: false, label: '', colour: 'green' };
+    return `<div class="place-row">
+      <label>From<input type="number" name="p_from" min="1" max="60" value="${esc(String(v.from))}" required></label>
+      <label>To<input type="number" name="p_to" min="1" max="60" value="${esc(String(v.to))}"></label>
+      <label>Counting<select name="p_end"><option value="top"${v.from_bottom ? '' : ' selected'}>from the top</option><option value="bottom"${v.from_bottom ? ' selected' : ''}>from the bottom</option></select></label>
+      <label class="grow">Means<input type="text" name="p_label" maxlength="40" value="${esc(v.label)}" placeholder="e.g. Champions League"></label>
+      <label>Colour<span class="colour-pick"><span class="swatch zc-${esc(v.colour)}" aria-hidden="true"></span><select name="p_colour">${PLACE_COLOURS.map(([k, n]) => `<option value="${k}"${k === v.colour ? ' selected' : ''}>${n}</option>`).join('')}</select></span></label>
+      <button class="btn small quiet" type="button" data-remove-place aria-label="Remove this place">Remove</button>
+    </div>`;
+  }
+  // Type and marked places, shared by the add and edit forms.
   function compTableFields(c) {
-    const z = c ? c.zones : { top: 0, mid: 0, bottom: 0 };
     const cup = c && !c.has_table;
     return `<label>Type<select name="table_type">
         <option value="league"${cup ? '' : ' selected'}>League: show a league table</option>
         <option value="cup"${cup ? ' selected' : ''}>Cup or tournament: no league table</option></select></label>
-      <fieldset class="zone-fields"${cup ? ' disabled' : ''}><legend>Coloured places in the league table <span class="hint">Optional. For example 4 for the Champions League places, 2 for Europa League, 3 for relegation.</span></legend>
-        <label>Top places<input type="number" name="zone_top" min="0" max="30" value="${z.top}"></label>
-        <label>Next places<input type="number" name="zone_mid" min="0" max="30" value="${z.mid}"></label>
-        <label>Bottom places<input type="number" name="zone_bottom" min="0" max="30" value="${z.bottom}"></label>
+      <fieldset class="places-editor"${cup ? ' disabled' : ''}><legend>What the positions mean <span class="hint">Optional. Each line colours some positions in the table and explains them in a key, e.g. 1st to 4th Champions League, bottom 3 Relegation. If lines overlap, the first one wins.</span></legend>
+        <div class="place-rows">${(c ? c.places : []).map(placeRowHtml).join('')}</div>
+        <div class="place-tools"><button class="btn small quiet" type="button" data-add-place>Add a line</button>
+          <select data-preset aria-label="Start from a preset"><option value="">Start from a preset…</option>
+            ${Object.entries(PLACE_PRESETS).map(([k, [n]]) => `<option value="${k}">${esc(n)}</option>`).join('')}</select></div>
       </fieldset>`;
   }
-  const compTableBody = (f) => ({ table_type: f.table_type.value, zone_top: f.zone_top.value, zone_mid: f.zone_mid.value, zone_bottom: f.zone_bottom.value });
-  const bindTypeSelect = (f) => f.table_type.addEventListener('change', () => { f.querySelector('.zone-fields').disabled = f.table_type.value === 'cup'; });
+  const compTableBody = (f) => ({
+    table_type: f.table_type.value,
+    places: [...f.querySelectorAll('.place-row')].map((r) => ({
+      from: Number(r.querySelector('[name=p_from]').value), to: Number(r.querySelector('[name=p_to]').value || r.querySelector('[name=p_from]').value),
+      from_bottom: r.querySelector('[name=p_end]').value === 'bottom', label: r.querySelector('[name=p_label]').value, colour: r.querySelector('[name=p_colour]').value,
+    })).filter((p) => p.from > 0),
+  });
+  function bindTypeSelect(f) {
+    const box = f.querySelector('.places-editor');
+    const rows = box.querySelector('.place-rows');
+    f.table_type.addEventListener('change', () => { box.disabled = f.table_type.value === 'cup'; });
+    box.addEventListener('click', (e) => {
+      if (e.target.closest('[data-add-place]')) {
+        rows.insertAdjacentHTML('beforeend', placeRowHtml(null));
+        rows.lastElementChild.querySelector('[name=p_from]').focus();
+      }
+      if (e.target.closest('[data-remove-place]')) e.target.closest('.place-row').remove();
+    });
+    box.addEventListener('change', (e) => {
+      if (e.target.name === 'p_colour') e.target.previousElementSibling.className = `swatch zc-${e.target.value}`;
+      if (e.target.matches('[data-preset]') && e.target.value) {
+        const [, list] = PLACE_PRESETS[e.target.value];
+        rows.innerHTML = list.map(([from, to, fb, label, colour]) => placeRowHtml({ from, to, from_bottom: fb, label, colour })).join('');
+        e.target.value = '';
+      }
+    });
+  }
 
   async function adminCompetitions() {
     const render = (d) => {
@@ -1012,7 +1060,7 @@
       const n = d.competitions.length;
       const items = d.competitions.map((c, i) => `<li class="admin-item" data-comp="${c.id}">
           <span class="comp-tag">${esc(c.short)}</span>
-          <span class="grow"><strong>${esc(c.name)}</strong><br><span class="muted">${esc(plural(c.fixtures, 'fixture'))} · ${c.has_table ? `league table${zoneText(c.zones)}` : 'cup, no table'}</span></span>
+          <span class="grow"><strong>${esc(c.name)}</strong><br><span class="muted">${esc(plural(c.fixtures, 'fixture'))} · ${c.has_table ? `league table${esc(placesText(c.places))}` : 'cup, no table'}</span></span>
           <span class="actions">
             <button class="btn small quiet" type="button" data-move="-1"${i === 0 ? ' disabled' : ''} aria-label="Move ${esc(c.name)} up">Up</button>
             <button class="btn small quiet" type="button" data-move="1"${i === n - 1 ? ' disabled' : ''} aria-label="Move ${esc(c.name)} down">Down</button>
@@ -2433,7 +2481,7 @@
       if (!c) return `<p class="muted">No league called "${esc(arg)}". Use a competition's short name, like [[standings PL]].</p>`;
       const data = await cached(`teamtable-${c.id}`, () => api('teamtable', { query: { comp: c.id } }));
       if (!data.table.length) return `<p class="muted">The ${esc(c.name)} table fills in as results are entered.</p>`;
-      return `<h3 class="widget-title">${esc(c.name)}</h3>${teamTableHtml(data.table, data.table.some((r) => r.played) ? data.competition.zones : null, { compact: true })}
+      return `<h3 class="widget-title">${esc(c.name)}</h3>${teamTableHtml(data.table, data.competition.places, { compact: true })}
         <p><a href="#/standings/${c.id}">Full ${esc(c.name)} table</a></p>`;
     }
     if (kind === 'join') {
@@ -3009,30 +3057,33 @@
   }
 
   // Places are coloured by row (1st, 2nd...), as in a printed table, even when teams are level.
-  function zoneOf(row, total, z) {
-    if (!z) return '';
-    if (z.top && row <= z.top) return 'zone-top';
-    if (z.mid && row <= z.top + z.mid) return 'zone-mid';
-    if (z.bottom && row > total - z.bottom && row > z.top + z.mid) return 'zone-bottom';
-    return '';
+  function placeFor(row, total, places) {
+    for (const p of places || []) {
+      const hit = p.from_bottom ? row >= total - p.to + 1 && row <= total - p.from + 1 : row >= p.from && row <= p.to;
+      if (hit) return p;
+    }
+    return null;
   }
 
-  function teamTableHtml(rows, zones, { compact = false } = {}) {
+  function teamTableHtml(rows, places, { compact = false } = {}) {
     const total = rows.length;
     const head = compact
       ? '<th scope="col" title="Played">P</th><th scope="col" title="Goal difference">GD</th><th scope="col" title="Points">Pts</th>'
       : `<th scope="col" title="Played">P</th><th scope="col" title="Won">W</th><th scope="col" title="Drawn">D</th><th scope="col" title="Lost">L</th>
          <th scope="col" class="wide" title="Goals for">F</th><th scope="col" class="wide" title="Goals against">A</th>
          <th scope="col" title="Goal difference">GD</th><th scope="col" title="Points">Pts</th><th scope="col" class="form-col">Form</th>`;
+    let prev = null;
     const body = rows.map((r, i) => {
-      const z = zoneOf(i + 1, total, zones);
+      const p = placeFor(i + 1, total, places);
+      const z = [p ? `zc-${p.colour}` : '', i > 0 && p !== prev ? 'place-edge' : ''].filter(Boolean).join(' ');
+      prev = p;
       const gd = `${r.diff > 0 ? '+' : ''}${r.diff}`;
       const cells = compact
         ? `<td>${r.played}</td><td>${gd}</td><td class="pts">${r.points}</td>`
         : `<td>${r.played}</td><td>${r.won}</td><td>${r.drawn}</td><td>${r.lost}</td><td class="wide">${r.for}</td><td class="wide">${r.against}</td>
            <td>${gd}</td><td class="pts">${r.points}</td><td class="form-col">${formChips(r.form)}</td>`;
       const crestImg = r.badge ? `<img class="crest" src="${esc(r.badge)}" alt="" width="22" height="22" loading="lazy">` : '<span class="crest" aria-hidden="true"></span>';
-      return `<tr${z ? ` class="${z}"` : ''}><td class="pos">${r.position}</td>
+      return `<tr${z ? ` class="${z}"` : ''}${p && p.label ? ` title="${esc(p.label)}"` : ''}><td class="pos">${r.position}</td>
         <td class="name"><span class="team-cell">${crestImg}<span class="tname">${esc(r.team)}</span><abbr class="tshort" title="${esc(r.team)}">${esc(r.short || r.team.slice(0, 3).toUpperCase())}</abbr></span></td>${cells}</tr>`;
     }).join('');
     return `<div class="table-wrap"><table class="league teams${compact ? ' compact' : ''}">
@@ -3040,12 +3091,10 @@
       <tbody>${body}</tbody></table></div>`;
   }
 
-  function zoneLegend(z) {
-    const items = [];
-    if (z.top) items.push(`<span class="legend-item"><span class="swatch zone-top"></span>Top ${z.top}</span>`);
-    if (z.mid) items.push(`<span class="legend-item"><span class="swatch zone-mid"></span>Next ${z.mid}</span>`);
-    if (z.bottom) items.push(`<span class="legend-item"><span class="swatch zone-bottom"></span>Bottom ${z.bottom}</span>`);
-    return items.length ? `<p class="zone-legend muted">${items.join('')}</p>` : '';
+  function placesLegend(places) {
+    if (!places || !places.length) return '';
+    return `<ul class="zone-legend">${places.map((p) => `<li class="legend-item"><span class="swatch zc-${esc(p.colour)}" aria-hidden="true"></span>
+      <strong>${esc(placeRange(p))}</strong>${p.label ? ` ${esc(p.label)}` : ''}</li>`).join('')}</ul>`;
   }
 
   async function viewStandings(arg) {
@@ -3059,14 +3108,13 @@
     const c = data.competition;
     const tabs = data.competitions.length > 1 ? `<nav class="tabs table-switch" aria-label="Competitions">${data.competitions.map((x) =>
       `<a href="#/standings/${x.id}"${x.id === c.id ? ' aria-current="page"' : ''}>${esc(x.name)}</a>`).join('')}</nav>` : '';
-    const played = data.table.some((r) => r.played);
     let html = `${tabs}<div class="title-row"><h1>${esc(c.name)}</h1>${seasonPicker()}</div>
       <p class="lede">The ${esc(c.name)} table${data.season ? ` for ${esc(data.season.name)}` : ''}, from the results entered on this site. 3 points for a win, 1 for a draw.
         <a href="#/table/${c.id}">Prediction table</a></p>`;
     if (!data.table.length) {
       html += `<div class="notice"><p>No results yet${data.season ? ` in ${esc(data.season.name)}` : ''}. The table fills in as results are entered.</p></div>`;
     } else {
-      html += teamTableHtml(data.table, played ? c.zones : null) + (played ? zoneLegend(c.zones) : '');
+      html += teamTableHtml(data.table, c.places) + placesLegend(c.places);
     }
     setPage(html);
   }

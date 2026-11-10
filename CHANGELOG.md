@@ -5,6 +5,19 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.2.0 (10 November 2026)
+
+**Positions in league tables are configurable per competition.** Instead of a
+fixed "top, next and bottom" count, each competition has its own list of what
+the positions mean: any number of lines, each a range counted from the top or
+the bottom, with a label (Champions, Champions League, Play-offs, Relegation…)
+and one of nine colours.
+- The table shows each line's colour beside its positions, a dividing line
+  where one meaning ends, the meaning when you hover a row, and a key below.
+- Presets for Premier League, Championship / League One and League Two styles.
+- Settings from v2.1.0 (top/next/bottom counts) are converted automatically;
+  backups keep the new lists.
+
 ## v2.1.0 (10 November 2026)
 
 **League tables.** A new "League tables" page shows the real table for each
