@@ -5,6 +5,13 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.5.2 (10 November 2026)
+
+- Fix: the score boxes on Admin > Results were stretched to full width after
+  v2.5.1 made them text boxes. The general form-field rule now leaves score
+  boxes out, so they keep their small square size and every other form field
+  still fills its label's width.
+
 ## v2.5.1 (10 November 2026)
 
 - Admin > Results: type **P** in a score box (or press the new P button on
