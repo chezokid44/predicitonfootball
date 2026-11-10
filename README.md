@@ -39,7 +39,13 @@ settings carry over.
   to the most recent: goals for and against, points per game, home advantage)
   and marked Auto, for the competitions they play. Admins can turn the option
   off with `AUTOPRED_ON`.
-- Enter several results at once (Admin > Results > Save all results)
+- Enter several results at once (Admin > Results > Save all results). Admin >
+  Results and Admin > Fixtures have Season and Competition dropdowns (they
+  remember your choice), and Results can list matches needing a result first
+  or newest first.
+- Remove several fixtures at once: tick them in Admin > Fixtures (or "Select
+  all shown" after choosing a season and competition) and press Remove. Their
+  predictions are removed too and the tables are recalculated.
 - Competitions (Admin > Competitions): put fixtures into competitions such as a
   league and its cups. Players filter the Predict and Results pages by
   competition and group them by date or by competition; matches with the same

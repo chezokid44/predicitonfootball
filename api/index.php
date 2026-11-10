@@ -69,6 +69,7 @@ function routes(): array {
     'admin.fixture'    => ['POST', 'route_admin_fixture'],
     'admin.fixtures'   => ['POST', 'route_admin_fixtures_bulk'],
     'admin.delete'     => ['POST', 'route_admin_delete_fixture'],
+    'admin.deletemany' => ['POST', 'route_admin_delete_fixtures'],
     'admin.result'     => ['POST', 'route_admin_result'],
     'admin.users'      => ['GET',  'route_admin_users'],
     'admin.user'       => ['POST', 'route_admin_user'],
@@ -459,6 +460,34 @@ function route_admin_delete_fixture(): array {
   save_standings(compute_standings());
   log_event('fixture_delete', 'Deleted fixture: ' . clean_text($gone['hometeam']) . ' v ' . clean_text($gone['awayteam']) . ', ' . substr((string)$gone['matchdate'], 0, 16));
   return ['deleted' => $id];
+}
+
+/** Remove several fixtures at once, with their predictions. */
+function route_admin_delete_fixtures(): array {
+  require_admin();
+  $ids = body()['ids'] ?? null;
+  if (!is_array($ids)) fail(422, 'Choose the fixtures to remove.');
+  $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn($i) => $i > 0)));
+  if (!$ids) fail(422, 'Choose the fixtures to remove.');
+  if (count($ids) > 1000) fail(422, 'Remove up to 1,000 fixtures at a time.');
+  $in = implode(',', array_fill(0, count($ids), '?'));
+  $found = q('SELECT matchid, hometeam, awayteam, matchdate FROM ' . t('matches') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $ids))->fetchAll();
+  if (!$found) fail(404, 'Those fixtures no longer exist.');
+  $ids = array_map(fn($r) => (int)$r['matchid'], $found);
+  $in = implode(',', array_fill(0, count($ids), '?'));
+  competition_map();  // make sure the link table exists before the transaction
+  $pdo = db();
+  $pdo->beginTransaction();
+  $preds = (int)q('SELECT COUNT(*) FROM ' . t('predictions') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $ids))->fetchColumn();
+  q('DELETE FROM ' . t('predictions') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $ids));
+  q('DELETE FROM ' . t('matches') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $ids));
+  q('DELETE FROM ' . xt('matchcomp') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $ids));
+  $pdo->commit();
+  competition_map(true);
+  save_standings(compute_standings());
+  $names = array_map(fn($r) => clean_text($r['hometeam']) . ' v ' . clean_text($r['awayteam']) . ' ' . substr((string)$r['matchdate'], 0, 10), $found);
+  log_event('fixture_delete', mb_substr('Removed ' . count($found) . ' fixtures (' . $preds . ' predictions): ' . implode('; ', $names), 0, 255));
+  return ['deleted' => count($found), 'predictions' => $preds];
 }
 
 function route_admin_result(): array {

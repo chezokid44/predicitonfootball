@@ -746,3 +746,10 @@ table.teams tr.place-edge td { border-top: 2px solid var(--ink-soft); }
 .place-row { flex-wrap: wrap; }
 .place-row [data-remove-place] { margin-left: auto; }
 .place-tools [data-preset] { max-width: 18rem; }
+
+/* ---------- Admin fixture filter and removing several fixtures ---------- */
+.admin-filter { margin: 8px 0 12px; }
+.bulk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 12px; margin: 8px 0; background: var(--surface); border: 1px solid var(--rule); position: sticky; top: 0; z-index: 2; }
+.admin-item .pick { display: flex; align-items: center; padding-right: 4px; }
+.admin-item .pick input { width: 1.2rem; height: 1.2rem; accent-color: var(--coupon); }
+.admin-item:has([data-pick]:checked) { background: color-mix(in srgb, var(--coupon) 8%, transparent); }

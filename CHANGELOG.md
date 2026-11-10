@@ -5,6 +5,16 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.3.0 (10 November 2026)
+
+- **Remove several fixtures at once.** Admin > Fixtures has a tick box on each
+  fixture, "Select all shown" and a Remove button, which also removes their
+  predictions and recalculates the tables (one entry in the activity log).
+- **Season and Competition dropdowns** on Admin > Results and Admin > Fixtures,
+  remembered between visits, defaulting to the current season. Results can be
+  listed with matches needing a result first, or newest first, and notes how
+  many matches outside the choice still need a result.
+
 ## v2.2.0 (10 November 2026)
 
 **Positions in league tables are configurable per competition.** Instead of a

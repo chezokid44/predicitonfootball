@@ -903,13 +903,65 @@
     return `<div class="grid-row${competitionsOn() ? ' with-comp' : ''}" data-row="${i}">${fixtureInputs(i, f)}<span></span></div>`;
   }
 
+  // ---- Season and competition filter for the admin fixture and result lists ----
+
+  function adminFilter() {
+    let f = {};
+    try { f = JSON.parse(localStorage.getItem('pl.adminFilter') || '{}') || {}; } catch (e) { /* storage unavailable */ }
+    const seasons = state.settings.seasons || [];
+    let season = f.season === undefined ? '' : String(f.season);   // '' = current season
+    if (season !== 'all' && season !== '' && !seasons.some((x) => String(x.id) === season)) season = '';
+    let comp = f.comp === undefined ? 'all' : String(f.comp);
+    if (!['all', 'none'].includes(comp) && !(state.settings.competitions || []).some((c) => String(c.id) === comp)) comp = 'all';
+    return { season, comp, show: f.show === 'all' ? 'all' : 'todo' };
+  }
+  function saveAdminFilter(f) {
+    try { localStorage.setItem('pl.adminFilter', JSON.stringify(f)); } catch (e) { /* storage unavailable */ }
+  }
+  function adminFiltered(fixtures, f) {
+    const sid = f.season === 'all' || !hasSeasons() ? null : (f.season === '' ? state.settings.current_season : Number(f.season));
+    return fixtures.filter((x) => (sid === null || x.season === sid)
+      && (f.comp === 'all' || (f.comp === 'none' ? !x.competition : x.competition && String(x.competition.id) === f.comp)));
+  }
+  function adminFilterBar(f, { show = false } = {}) {
+    const seasons = state.settings.seasons || [];
+    const comps = state.settings.competitions || [];
+    if (!seasons.length && !comps.length && !show) return '';
+    const cur = state.settings.current_season;
+    return `<div class="fixture-tools admin-filter" role="group" aria-label="Show fixtures">
+      ${seasons.length ? `<label>Season<select data-af="season">
+        ${seasons.map((x) => `<option value="${x.id === cur ? '' : x.id}"${(f.season === '' && x.id === cur) || f.season === String(x.id) ? ' selected' : ''}>${esc(x.name)}${x.id === cur ? ' (current)' : ''}</option>`).join('')}
+        ${cur === null ? `<option value=""${f.season === '' ? ' selected' : ''}>Current</option>` : ''}
+        <option value="all"${f.season === 'all' ? ' selected' : ''}>All seasons</option></select></label>` : ''}
+      ${comps.length ? `<label>Competition<select data-af="comp"><option value="all">All competitions</option>
+        ${comps.map((c) => `<option value="${c.id}"${f.comp === String(c.id) ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}
+        <option value="none"${f.comp === 'none' ? ' selected' : ''}>No competition</option></select></label>` : ''}
+      ${show ? `<label>Show<select data-af="show"><option value="todo"${f.show === 'todo' ? ' selected' : ''}>Needing a result first</option>
+        <option value="all"${f.show === 'all' ? ' selected' : ''}>Newest first</option></select></label>` : ''}
+    </div>`;
+  }
+  function bindAdminFilter(onChange) {
+    const bar = main.querySelector('.admin-filter');
+    if (!bar) return;
+    bar.addEventListener('change', () => {
+      const get = (k, d) => { const el = bar.querySelector(`[data-af=${k}]`); return el ? el.value : d; };
+      const f = adminFilter();
+      saveAdminFilter({ season: get('season', f.season), comp: get('comp', f.comp), show: get('show', f.show) });
+      onChange();
+    });
+  }
+
   async function adminFixtures() {
-    const { fixtures } = await api('fixtures');
+    const { fixtures: all } = await api('fixtures');
+    const filter = adminFilter();
+    const fixtures = adminFiltered(all, filter);
     const upcoming = fixtures.filter((f) => !f.started).sort((a, b) => a.kickoff.localeCompare(b.kickoff));
     const past = fixtures.filter((f) => f.started).sort((a, b) => b.kickoff.localeCompare(a.kickoff));
     const rows = state.settings.multi_fixture_rows || 10;
+    const hidden = all.length - fixtures.length;
 
     const list = (items) => items.map((f) => `<li class="admin-item" data-id="${f.id}">
+        <label class="pick"><input type="checkbox" data-pick="${f.id}" aria-label="Select ${esc(f.home_team)} v ${esc(f.away_team)}"></label>
         <span class="grow"><strong>${esc(f.home_team)} v ${esc(f.away_team)}</strong><br>
         <span class="muted">${compTag(f.competition)}${esc(fmtShort(f.kickoff))}${f.result ? `, final ${f.result.home}–${f.result.away}` : ''}, ${esc(plural(f.prediction_count, 'prediction'))}</span></span>
         <span class="actions">
@@ -926,11 +978,50 @@
         ${Array.from({ length: rows }, (_, i) => fixtureRow(i)).join('')}
         <div><button class="btn" type="submit">Add fixtures</button></div>
       </form>
-      <h2>Upcoming</h2>
+      <h2 id="fixture-lists">Fixtures</h2>
+      ${adminFilterBar(filter)}
+      ${hidden ? `<p class="muted tight">${esc(plural(fixtures.length, 'fixture'))} shown; ${esc(plural(hidden, 'other'))} hidden by the filter.</p>` : ''}
+      ${fixtures.length ? `<div class="bulk-bar"><label class="check"><input type="checkbox" id="pick-all"><span>Select all shown</span></label>
+        <button class="btn small danger" type="button" id="remove-picked" disabled>Remove selected</button>
+        <span class="muted" id="picked-msg" aria-live="polite"></span></div>` : ''}
+      <div id="fixture-picks"><h3>Upcoming</h3>
       ${upcoming.length ? `<ul class="admin-list">${list(upcoming)}</ul>` : '<p class="muted">No upcoming fixtures.</p>'}
-      <h2>Kicked off</h2>
-      ${past.length ? `<ul class="admin-list">${list(past)}</ul>` : '<p class="muted">None yet.</p>'}`);
+      <h3>Kicked off</h3>
+      ${past.length ? `<ul class="admin-list">${list(past)}</ul>` : '<p class="muted">None yet.</p>'}</div>`);
     addTeamDatalist();
+    bindAdminFilter(() => adminFixtures().then(() => document.getElementById('fixture-lists').scrollIntoView()));
+
+    // Removing several fixtures at once
+    const picks = () => [...main.querySelectorAll('[data-pick]:checked')].map((i) => Number(i.dataset.pick));
+    const removeBtn = document.getElementById('remove-picked');
+    const updatePicked = () => {
+      const ids = picks();
+      const preds = ids.reduce((n, id) => n + (all.find((x) => x.id === id).prediction_count || 0), 0);
+      removeBtn.disabled = !ids.length;
+      removeBtn.textContent = ids.length ? `Remove ${plural(ids.length, 'fixture')}` : 'Remove selected';
+      document.getElementById('picked-msg').textContent = ids.length && preds ? `Their ${plural(preds, 'prediction')} will be removed too.` : '';
+      const allBox = document.getElementById('pick-all');
+      const boxes = main.querySelectorAll('[data-pick]');
+      allBox.checked = ids.length === boxes.length;
+      allBox.indeterminate = ids.length > 0 && ids.length < boxes.length;
+    };
+    if (removeBtn) {
+      document.getElementById('fixture-picks').addEventListener('change', (e) => { if (e.target.matches('[data-pick]')) updatePicked(); });
+      document.getElementById('pick-all').addEventListener('change', (e) => {
+        main.querySelectorAll('[data-pick]').forEach((i) => { i.checked = e.target.checked; });
+        updatePicked();
+      });
+      removeBtn.addEventListener('click', () => {
+        const ids = picks();
+        armed(removeBtn, `Click again to remove ${plural(ids.length, 'fixture')} for good`, async () => {
+          try {
+            const res = await submitting(removeBtn, () => api('admin.deletemany', { method: 'POST', body: { ids } }));
+            toast(`Removed ${plural(res.deleted, 'fixture')}${res.predictions ? ` and ${plural(res.predictions, 'prediction')}` : ''}. Tables updated.`);
+            adminFixtures();
+          } catch (err) { toast(err.message, true); }
+        });
+      });
+    }
 
     const form = document.getElementById('bulk-form');
     form.addEventListener('submit', async (e) => {
@@ -951,7 +1042,7 @@
       } catch (err) { formError(form, err.message); }
     });
 
-    const byId = Object.fromEntries(fixtures.map((f) => [String(f.id), f]));
+    const byId = Object.fromEntries(all.map((f) => [String(f.id), f]));
     main.querySelectorAll('[data-delete]').forEach((btn) => btn.addEventListener('click', () => {
       const f = byId[btn.dataset.delete];
       armed(btn, f.prediction_count ? `Delete with ${plural(f.prediction_count, 'prediction')}?` : 'Confirm delete', async () => {
@@ -1135,16 +1226,22 @@
   }
 
   async function adminResults() {
-    const { fixtures } = await api('fixtures');
-    const started = fixtures.filter((f) => f.started)
-      .sort((a, b) => (!!a.result - !!b.result) || b.kickoff.localeCompare(a.kickoff));
-    if (!started.length) {
+    const { fixtures: all } = await api('fixtures');
+    const filter = adminFilter();
+    const allStarted = all.filter((f) => f.started);
+    const started = adminFiltered(allStarted, filter)
+      .sort((a, b) => (filter.show === 'todo' ? (!!a.result - !!b.result) : 0) || b.kickoff.localeCompare(a.kickoff));
+    if (!allStarted.length) {
       adminShell('results', `<p class="lede">No matches have kicked off yet. Results can be entered once a match starts.</p>`);
       return;
     }
     const waiting = started.filter((f) => !f.result).length;
-    let html = `<p class="lede">${waiting ? `${esc(plural(waiting, 'match', 'matches'))} need a result.` : 'Every match that has kicked off has a result.'}
-      The table updates as soon as you save. Clear both scores to remove a result.</p><ul class="fixtures">`;
+    const elsewhere = allStarted.filter((f) => !f.result).length - waiting;
+    let html = `<p class="lede">${waiting ? `${esc(plural(waiting, 'match', 'matches'))} here need a result.` : 'Every match shown has a result.'}
+      The table updates as soon as you save. Clear both scores to remove a result.</p>
+      ${adminFilterBar(filter, { show: true })}
+      ${elsewhere ? `<p class="muted tight">${esc(plural(elsewhere, 'other match', 'other matches'))} outside this season or competition ${elsewhere === 1 ? 'needs' : 'need'} a result.</p>` : ''}
+      ${started.length ? '' : '<p class="muted">No matches that have kicked off match these choices.</p>'}<ul class="fixtures">`;
     for (const f of started) {
       const box = (side) => `<input class="box${f.result ? ' filled' : ''}" type="number" inputmode="numeric" min="0" max="99"
         data-side="${side}" value="${f.result ? f.result[side] : ''}" aria-label="${esc(side === 'home' ? f.home_team : f.away_team)} goals">`;
@@ -1159,6 +1256,8 @@
     html += `</ul><div class="savebar"><button class="btn" type="button" id="save-all">Save all results</button>
       <span class="msg" id="results-msg" aria-live="polite">Fill in several scores, then save them together.</span></div>`;
     adminShell('results', html + '');
+    bindAdminFilter(adminResults);
+    if (!started.length) return;
     const original = Object.fromEntries(started.map((f) => [String(f.id), f.result ? `${f.result.home}-${f.result.away}` : '-']));
     const changedRows = () => [...main.querySelectorAll('li.fixture[data-id]')].filter((li) =>
       `${li.querySelector('[data-side=home]').value}-${li.querySelector('[data-side=away]').value}` !== original[li.dataset.id]);
