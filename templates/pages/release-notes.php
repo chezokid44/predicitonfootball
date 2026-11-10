@@ -1,1 +1,0 @@
-<pre class="release-notes"><?php echo htmlspecialchars(file_get_contents("ReleaseNotes.txt"), ENT_QUOTES, "UTF-8"); ?></pre>

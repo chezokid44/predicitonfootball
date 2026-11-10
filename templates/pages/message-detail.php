@@ -1,1 +1,0 @@
-<?php ShowMessage($msgid, $fromshowall); ?>

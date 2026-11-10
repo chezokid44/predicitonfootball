@@ -1,0 +1,2 @@
+# Apache: SQL files are for phpMyAdmin/the command line, not the web.
+Require all denied

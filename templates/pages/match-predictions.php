@@ -1,1 +1,0 @@
-<?php GetPredictionsForMatch($matchid, $date); ?>

@@ -1,1 +1,0 @@
-<p><?php echo htmlspecialchars($response, ENT_QUOTES, "UTF-8"); ?></p>

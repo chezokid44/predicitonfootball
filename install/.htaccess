@@ -1,0 +1,4 @@
+# Apache: only install/index.php may be requested directly.
+<Files "installer.php">
+  Require all denied
+</Files>

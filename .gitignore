@@ -1,0 +1,14 @@
+# Written by the installer: holds the database password. Never commit it.
+api/config.php
+
+# Players' pictures, page pictures and team badges uploaded on the live site
+uploads/icons/*
+uploads/pages/*
+uploads/badges/*
+!uploads/*/index.html
+
+# Local test databases and editor clutter
+*.db
+*.sqlite
+.DS_Store
+Thumbs.db

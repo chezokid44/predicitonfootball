@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /hp/
+Disallow: /api/
+Disallow: /install/

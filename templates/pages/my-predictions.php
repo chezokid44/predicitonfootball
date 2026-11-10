@@ -1,1 +1,0 @@
-<?php GetUserPredictions($User->userid); ?>
