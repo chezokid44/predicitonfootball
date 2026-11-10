@@ -264,7 +264,7 @@ input[type=number]:not(.box), input[type=datetime-local], input[type=date], sele
   border: 1.5px solid var(--ink-soft);
   border-radius: 0;
   padding: 9px 10px;
-  width: 100%;
+  width: auto;
 }
 input:focus-visible, select:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; border-color: var(--ink); }
 .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; }
