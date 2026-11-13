@@ -380,6 +380,7 @@ function default_settings(): array {
     'BOT_BLOCK_HOURS'   => [3, '24', 'How many hours an address is blocked from logging in after it falls into a bot trap (0 to only log it).', 'number'],
     'BAN_STRIKES'       => [3, '5', 'Ban an address permanently after this many strikes. Every block is a strike, and so is each try from a blocked address (at most one every 10 minutes). 0 means never ban automatically.', 'number'],
     'BAN_WHOLE_SITE'    => [3, 'TRUE', 'Permanently banned addresses are shut out of the whole site (otherwise only log-in, sign-up and password resets).', 'bool'],
+    'NOTFOUND_LIMIT'    => [3, '5', 'Block an address (one strike) after it asks for this many pages that don\'t exist within 10 minutes. Logged-in players and harmless files like favicon.ico never count. 0 turns this off.', 'number'],
     'AUTOPRED_ON'       => [3, 'TRUE', 'Let players switch on automatic predictions: if they haven\'t predicted a match when predictions close, one is made from the teams\' recent form.', 'bool'],
     'LEAGUES_ON'        => [3, 'TRUE', 'Let players create private leagues and invite friends with a code.', 'bool'],
     'MAX_LEAGUES_PER_PLAYER' => [3, '5', 'How many private leagues each player can create (admins have no limit).', 'number'],
@@ -764,7 +765,7 @@ function extra_tables(): array {
           'leagues' => 'plleagues', 'leaguecomps' => 'plleaguecomps', 'members' => 'plleaguemembers',
           'follows' => 'plfollows', 'pages' => 'plpages', 'menu' => 'plmenu',
           'seasons' => 'plseasons', 'teams' => 'plteams', 'compteams' => 'plcompteams',
-          'postponed' => 'plpostponed', 'store' => 'plstore'];
+          'postponed' => 'plpostponed', 'store' => 'plstore', 'misses' => 'plmisses'];
 }
 
 function extra_table_sql(string $name, string $driver): string {
@@ -825,6 +826,20 @@ function extra_table_sql(string $name, string $driver): string {
           `compid` INT NOT NULL,
           PRIMARY KEY (`lid`, `matchid`),
           KEY `idx_comp` (`lid`, `compid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
+  }
+  if ($name === 'misses') {
+    return $driver === 'sqlite'
+      ? "CREATE TABLE IF NOT EXISTS {$tables['misses']} (id INTEGER PRIMARY KEY AUTOINCREMENT, lid INT NOT NULL DEFAULT 0, ip VARCHAR(45) NOT NULL, path VARCHAR(190) NOT NULL, created DATETIME NOT NULL)"
+      : "CREATE TABLE IF NOT EXISTS `{$tables['misses']}` (
+          `id` INT NOT NULL AUTO_INCREMENT,
+          `lid` INT NOT NULL DEFAULT 0,
+          `ip` VARCHAR(45) NOT NULL,
+          `path` VARCHAR(190) NOT NULL,
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`id`),
+          KEY `idx_ip_created` (`lid`, `ip`, `created`),
+          KEY `idx_created` (`lid`, `created`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
   }
   if ($name === 'store') {

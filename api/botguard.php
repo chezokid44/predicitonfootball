@@ -19,6 +19,12 @@
  * permanently, which (with BAN_WHOLE_SITE) shuts it out of the whole site.
  * Admins can also ban an address by hand. Strikes are forgotten once an
  * address has gone 30 days without a block.
+ *
+ * Missing pages: requests for pages that don't exist land in notfound.php
+ * (from index.php, .htaccess or nginx's error_page). NOTFOUND_LIMIT of them
+ * within 10 minutes is a strike. Any address that asks for a path on the trap
+ * URL list (a text file outside the web root, one pattern per line) is
+ * blocked straight away.
  */
 
 declare(strict_types=1);
@@ -42,6 +48,7 @@ function botguard_routes(): array {
     'admin.blocks'  => ['GET',  'route_admin_blocks'],
     'admin.unblock' => ['POST', 'route_admin_unblock'],
     'admin.ban'     => ['POST', 'route_admin_ban'],
+    'admin.traplist.add' => ['POST', 'route_admin_traplist_add'],
   ];
 }
 
@@ -278,6 +285,287 @@ function run_trap(string $where): void {
 }
 
 // ---------------------------------------------------------------------
+// Missing pages and the trap URL list
+// ---------------------------------------------------------------------
+
+const NOTFOUND_WINDOW = 600;          // NOTFOUND_LIMIT counts misses in this many seconds
+const MISS_KEEP_DAYS = 7;             // missing-page requests are kept this long
+const TRAP_LIST_MAX_BYTES = 262144;   // only the first 256 KB of the trap list is read
+const TRAP_LIST_MAX_PATTERNS = 2000;
+
+/**
+ * Where the trap URL list lives: 'trap_list_file' in api/config.php, or
+ * pl-trap-urls.txt in the folder above the site (outside the web root).
+ */
+function trap_list_file(): string {
+  $f = cfg('trap_list_file');
+  if (is_string($f) && trim($f) !== '') return trim($f);
+  return dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'pl-trap-urls.txt';
+}
+
+function default_trap_list(): string {
+  return <<<TXT
+# Prediction League trap URL list
+#
+# Any address that asks for one of these paths is blocked straight away
+# (one strike). One path per line. Lines starting with # are ignored.
+# * matches anything, so /wp-admin* covers /wp-admin/ and everything under it.
+# Matching ignores upper/lower case and anything after a ?. Paths are from
+# the site's home, so /.env means https://your-site/.env.
+#
+# Only addresses that don't exist on the site are checked, so a pattern
+# can't block a real page. Admin > Activity lists the missing addresses
+# being asked for, with a button to add them here.
+
+/wp-admin*
+/wp-content*
+/wp-includes*
+/wp-json*
+/wordpress*
+/wp-config*
+/.env*
+/.git*
+/.svn*
+/.aws*
+/.ds_store
+/.htpasswd
+/phpmyadmin*
+/pma*
+/myadmin*
+/adminer*
+/phpinfo*
+/info.php
+/vendor/*
+/cgi-bin*
+/shell*
+/backup*
+/config.json
+/config.yml
+/server-status
+/actuator*
+/owa/*
+/ecp/*
+/boaform*
+/hnap1*
+/*.sql
+/*.bak
+/*.zip
+/*.tar.gz
+
+TXT;
+}
+
+/** The file's text (created with common probes the first time, if the folder is writable). */
+function trap_list_text(bool $create = true): ?string {
+  $file = trap_list_file();
+  if (!@is_file($file)) {
+    $dir = dirname($file);
+    if (!$create || !@is_dir($dir) || !@is_writable($dir)) return null;
+    if (@file_put_contents($file, default_trap_list(), LOCK_EX) === false) return null;
+  }
+  $text = @file_get_contents($file, false, null, 0, TRAP_LIST_MAX_BYTES);
+  return $text === false ? null : $text;
+}
+
+/** One pattern as the list stores it: lower case, starting with /, no spaces. Null if it can't be one. */
+function clean_trap_pattern(string $p): ?string {
+  $p = strtolower(trim($p));
+  $p = (string)preg_replace('/[\x00-\x1F\x7F]/', '', $p);
+  if ($p === '' || $p[0] === '#') return null;
+  $p = explode('?', $p, 2)[0];
+  if ($p === '' || preg_match('/\s/', $p)) return null;
+  if ($p[0] !== '/' && $p[0] !== '*') $p = '/' . $p;
+  if (trim($p, '/*') === '') return null;   // "/" or "*" would trap everything
+  return mb_substr($p, 0, 190);
+}
+
+/** @return string[] the patterns in $text (default: the trap list file, read once per request unless $reload). */
+function trap_patterns(?string $text = null, bool $reload = false): array {
+  static $cache = null;
+  if ($text === null) {
+    if ($cache === null || $reload) $cache = trap_patterns(trap_list_text() ?? '');
+    return $cache;
+  }
+  $out = [];
+  foreach (preg_split('/\R/', $text) as $line) {
+    $p = clean_trap_pattern($line);
+    if ($p !== null) $out[$p] = true;
+    if (count($out) >= TRAP_LIST_MAX_PATTERNS) break;
+  }
+  return array_keys($out);
+}
+
+function trap_pattern_matches(string $pattern, string $path): bool {
+  $re = '#^' . str_replace('\*', '.*', preg_quote($pattern, '#')) . '$#is';
+  return (bool)preg_match($re, $path);
+}
+
+/** The first trap pattern $path matches, or null. */
+function trap_match(string $path): ?string {
+  $path = strtolower($path);
+  foreach (trap_patterns() as $p) {
+    if (trap_pattern_matches($p, $path)) return $p;
+  }
+  return null;
+}
+
+/** The requested path, from the site's home ("/wp-login.php"), without the query. */
+function requested_path(): string {
+  $uri = (string)($_SERVER['REQUEST_URI'] ?? '/');
+  $path = rawurldecode(explode('?', $uri, 2)[0]);
+  $path = (string)preg_replace('/[\x00-\x1F\x7F]/', '', $path);
+  $path = '/' . ltrim((string)preg_replace('#/{2,}#', '/', $path), '/');
+  $base = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/'))), '/');
+  if ($base !== '' && stripos($path, $base . '/') === 0) $path = substr($path, strlen($base));
+  return mb_substr($path, 0, 190);
+}
+
+/** Files browsers and crawlers ask for on their own: never a strike. */
+function harmless_path(string $path): bool {
+  $p = strtolower($path);
+  if (in_array($p, ['/favicon.ico', '/robots.txt', '/ads.txt', '/app-ads.txt', '/humans.txt', '/security.txt',
+                    '/manifest.json', '/site.webmanifest', '/manifest.webmanifest', '/browserconfig.xml', '/crossdomain.xml'], true)) return true;
+  if (preg_match('#^/apple-touch-icon[^/]*\.png$#', $p)) return true;
+  if (preg_match('#^/sitemap[^/]*\.xml$#', $p)) return true;
+  if (str_starts_with($p, '/.well-known/')) return true;
+  if (preg_match('#^/assets/[^?]*\.(css|js|map|png|svg|ico|woff2?)$#', $p)) return true;
+  if (preg_match('#^/uploads/[^?]*\.(png|jpe?g|gif|webp|svg)$#', $p)) return true;
+  return false;
+}
+
+/** A logged-in player (only checked when the browser sent a session cookie). */
+function request_signed_in(): bool {
+  $sid = (string)($_COOKIE['PLSESSION'] ?? '');
+  if (!preg_match('/^[A-Za-z0-9,-]{20,128}$/', $sid)) return false;
+  try {
+    start_session();
+    $signed = current_user() !== null;
+    session_write_close();
+    return $signed;
+  } catch (Throwable $e) {
+    return false;
+  }
+}
+
+function record_miss(string $ip, string $path): void {
+  with_table('misses', function () use ($ip, $path) {
+    q('INSERT INTO ' . xt('misses') . ' (lid, ip, path, created) VALUES (?, ?, ?, ?)', [lid(), mb_substr($ip, 0, 45), $path, now_str()]);
+    if (random_int(1, 100) === 1) {
+      q('DELETE FROM ' . xt('misses') . ' WHERE lid = ? AND created < ?', [lid(), date('Y-m-d H:i:s', time() - MISS_KEEP_DAYS * 86400)]);
+    }
+  });
+}
+
+function recent_misses(string $ip): int {
+  return (int)with_table('misses', fn() => q('SELECT COUNT(*) AS n FROM ' . xt('misses') . ' WHERE lid = ? AND ip = ? AND created >= ?',
+    [lid(), $ip, date('Y-m-d H:i:s', time() - NOTFOUND_WINDOW)])->fetch()['n']);
+}
+
+function short_path(string $path): string {
+  return mb_strlen($path) > 50 ? mb_substr($path, 0, 49) . '…' : $path;
+}
+
+/**
+ * A request for a page that doesn't exist (called by notfound.php).
+ * Trap-list paths block at once; other misses count towards NOTFOUND_LIMIT.
+ * Always answers with a plain 404.
+ */
+function handle_not_found(): void {
+  try {
+    date_default_timezone_set((string)cfg('timezone'));
+    $ip = client_ip();
+    $path = requested_path();
+    if ($ip !== '' && !ip_allowlisted($ip) && !ip_banned($ip)) {
+      $ua = mb_substr((string)preg_replace('/[^\x20-\x7E]/', '', (string)($_SERVER['HTTP_USER_AGENT'] ?? '')), 0, 120);
+      $trap = trap_match($path);
+      if ($trap !== null) {
+        if (ip_blocked($ip)) {
+          strike_while_blocked(short_path($path), $ip);
+        } else {
+          log_event('bot_trap', "Asked for $path (on the trap URL list as $trap)" . ($ua !== '' ? " ($ua)" : ''), ['id' => null, 'username' => null]);
+          block_ip('Asked for ' . short_path($path) . ' (trap URL list)', $ip);
+        }
+      } elseif (!harmless_path($path) && !request_signed_in()) {
+        record_miss($ip, $path);
+        $limit = max(0, min(1000, (int)setting('NOTFOUND_LIMIT')));
+        if (ip_blocked($ip)) {
+          strike_while_blocked('a missing page (' . short_path($path) . ')', $ip);
+        } elseif ($limit > 0 && recent_misses($ip) >= $limit) {
+          log_event('not_found', "Asked for $limit missing pages in 10 minutes, the last $path" . ($ua !== '' ? " ($ua)" : ''), ['id' => null, 'username' => null]);
+          block_ip("Asked for $limit missing pages, e.g. " . short_path($path), $ip);
+        }
+      }
+    }
+  } catch (Throwable $e) {
+    // Not installed yet, or the database is down: just say not found.
+  }
+  if (class_exists('ClpVarnish', false) && method_exists('ClpVarnish', 'setCacheLifetime')) ClpVarnish::setCacheLifetime(0);
+  if (!headers_sent()) {
+    http_response_code(404);
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store, private');  // a cached 404 would stop counting
+    header('X-Robots-Tag: noindex, nofollow');
+    header('X-Content-Type-Options: nosniff');
+  }
+  echo "<!doctype html><html lang=\"en-GB\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Page not found</title>"
+     . "<body style=\"font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem;color:#1C2B4A\">"
+     . "<h1>Page not found</h1><p>There's nothing at this address. <a href=\"" . htmlspecialchars(not_found_home(), ENT_QUOTES) . "\">Go to the league</a>.</p></body></html>";
+}
+
+function not_found_home(): string {
+  $base = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/'))), '/');
+  return $base . '/';
+}
+
+/** For Admin > Activity: where the trap list is and what's in it. */
+function trap_list_status(): array {
+  $file = trap_list_file();
+  $text = trap_list_text();
+  $root = realpath(dirname(__DIR__));
+  $real = $text !== null ? realpath($file) : false;
+  $dirReal = realpath(dirname($file));
+  $check = $real ?: ($dirReal ? $dirReal . DIRECTORY_SEPARATOR . basename($file) : $file);
+  $inside = $root && str_starts_with(str_replace('\\', '/', $check) . '/', str_replace('\\', '/', $root) . '/');
+  return [
+    'file' => $file,
+    'found' => $text !== null,
+    'writable' => $text !== null && @is_writable($file),
+    'patterns' => $text !== null ? trap_patterns($text) : [],
+    'in_web_root' => $inside,
+  ];
+}
+
+/** The missing addresses asked for most in the last 7 days. */
+function top_misses(int $limit = 25): array {
+  try {
+    $rows = with_table('misses', fn() => q('SELECT path, COUNT(*) AS hits, COUNT(DISTINCT ip) AS ips, MAX(created) AS last FROM ' . xt('misses')
+      . ' WHERE lid = ? AND created >= ? GROUP BY path ORDER BY hits DESC, last DESC LIMIT ' . $limit,
+      [lid(), date('Y-m-d H:i:s', time() - MISS_KEEP_DAYS * 86400)])->fetchAll());
+  } catch (Throwable $e) {
+    return [];
+  }
+  return array_map(fn($r) => ['path' => $r['path'], 'hits' => (int)$r['hits'], 'ips' => (int)$r['ips'], 'last' => $r['last'],
+                              'trapped' => trap_match((string)$r['path']) !== null], $rows);
+}
+
+/** Add a pattern to the trap list file (if the web server can write to it). */
+function route_admin_traplist_add(): array {
+  require_admin();
+  $p = clean_trap_pattern((string)(body()['pattern'] ?? ''));
+  if ($p === null) fail(422, 'Enter a path like /wp-admin* (no spaces; it can\'t be just / or *).');
+  $file = trap_list_file();
+  if (trap_list_text() === null) fail(422, "The trap list file $file doesn't exist and couldn't be created. Create it yourself, then try again.");
+  if (in_array($p, trap_patterns((string)trap_list_text(false)), true)) fail(422, "$p is already on the trap list.");
+  if (!@is_writable($file)) fail(422, "The web server can't write to $file. Add $p to it yourself.");
+  $text = (string)trap_list_text(false);
+  $add = ($text !== '' && !str_ends_with($text, "\n") ? "\n" : '') . $p . "\n";
+  if (@file_put_contents($file, $add, FILE_APPEND | LOCK_EX) === false) fail(500, "Couldn't write to $file.");
+  log_event('traplist', "Added $p to the trap URL list");
+  trap_patterns(null, true);
+  return route_admin_blocks() + ['added' => $p];
+}
+
+// ---------------------------------------------------------------------
 // Admin: blocked addresses
 // ---------------------------------------------------------------------
 
@@ -289,7 +577,8 @@ function route_admin_blocks(): array {
   $rows = array_map(fn($r) => ['ip' => $r['ip'], 'reason' => $r['reason'], 'created' => $r['created'], 'expires' => (int)$r['permanent'] ? null : $r['expires'],
                                'strikes' => (int)$r['strikes'], 'permanent' => (bool)(int)$r['permanent']], $rows);
   return ['blocks' => $rows, 'your_ip' => client_ip(), 'hours' => (int)setting('BOT_BLOCK_HOURS'),
-          'ban_strikes' => ban_strikes(), 'whole_site' => setting_bool('BAN_WHOLE_SITE')];
+          'ban_strikes' => ban_strikes(), 'whole_site' => setting_bool('BAN_WHOLE_SITE'),
+          'notfound_limit' => max(0, (int)setting('NOTFOUND_LIMIT')), 'trap_list' => trap_list_status(), 'misses' => top_misses()];
 }
 
 function route_admin_unblock(): array {

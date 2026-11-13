@@ -5,6 +5,28 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.7.0 (13 November 2026)
+
+**Missing pages count towards blocking, plus a trap URL list:**
+- Addresses that don't exist now get a plain 404 page from the new
+  `notfound.php` (unknown paths that reached `index.php` used to show the app).
+- `NOTFOUND_LIMIT` (Settings > Rules, default 5; 0 turns it off): an address
+  that asks for that many missing pages within 10 minutes is blocked, which is
+  a strike like any other block. Logged-in players and files browsers ask for
+  on their own (favicon.ico, apple-touch-icon, /.well-known/, sitemap.xml...)
+  never count.
+- Trap URL list: a text file outside the web root (default
+  `pl-trap-urls.txt` in the folder above the site, or `trap_list_file` in
+  `api/config.php`), one path per line with `*` wildcards and `#` comments.
+  Asking for a path on it blocks the address at once. Created with common
+  probe paths the first time if PHP can write there.
+- Admin > Activity shows the trap file's location (and warns if it's inside
+  the web root), its patterns, and the missing pages asked for in the last
+  7 days, with **Add to list** buttons and a box to add a path.
+- New table `plmisses` (kept 7 days). New `.htaccess` for Apache; on nginx
+  (CloudPanel) add `error_page 403 404 = /notfound.php;` to the Vhost (see
+  README).
+
 ## v2.6.0 (13 November 2026)
 
 **Discord alerts** (Admin > Settings > Discord alerts), in case email fails:

@@ -1,0 +1,5 @@
+# Apache: pages that don't exist go to notfound.php, which answers 404 and
+# counts them towards blocking (see README). If the site is in a subfolder,
+# put the folder in front, e.g. /league/notfound.php.
+ErrorDocument 404 /notfound.php
+ErrorDocument 403 /notfound.php

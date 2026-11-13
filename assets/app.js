@@ -1920,9 +1920,35 @@
     fixtures_import: 'Fixtures imported', result: 'Result', settings: 'Settings', player_add: 'Player added',
     player_admin: 'Admin rights', player_delete: 'Player deleted', recalculate: 'Recalculated', backup: 'Backup',
     restore: 'Restore', mail_test: 'Test email', mail_failed: 'Email failed',
-    bot_trap: 'Bot trap', bot_honeypot: 'Bot caught (hidden field)', bot_check_failed: 'Bot check failed', unblock: 'Block lifted',
+    bot_trap: 'Bot trap', bot_honeypot: 'Bot caught (hidden field)', bot_check_failed: 'Bot check failed', unblock: 'Block lifted', not_found: 'Missing pages', traplist: 'Trap URL list',
     auto_predict: 'Automatic predictions', competition: 'Competition', prefs: 'Preferences',
   };
+
+  // Trap URL list (a text file outside the web root) and the missing addresses being asked for.
+  function trapSection(blocks) {
+    const t = blocks.trap_list || {};
+    const misses = blocks.misses || [];
+    const status = !t.found
+      ? `<p class="trap-warn">The file isn't there and couldn't be created. Create it yourself (one path per line), or set <code>trap_list_file</code> in <code>api/config.php</code>.</p>`
+      : `<p class="muted">${esc(plural((t.patterns || []).length, 'pattern'))}${t.writable ? '' : '. The web server can\'t write to it, so add paths to it yourself'}.</p>`;
+    const rows = misses.map((m) => `<tr>
+        <td class="name"><code>${esc(m.path)}</code>${m.trapped ? ' <span class="tag">On the list</span>' : ''}</td>
+        <td>${m.hits}</td><td>${m.ips}</td><td class="nowrap muted">${esc(fmtShort(m.last))}</td>
+        <td>${m.trapped || !t.writable ? '' : `<button class="btn small quiet" type="button" data-trap="${esc(m.path)}">Add to list</button>`}</td></tr>`).join('');
+    return `<h3>Missing pages and the trap URL list</h3>
+      <p class="muted">${blocks.notfound_limit ? `An address that asks for ${esc(plural(blocks.notfound_limit, 'page'))} that don't exist within 10 minutes is blocked (a strike).` : 'Missing pages don\'t count as strikes (NOTFOUND_LIMIT is 0).'}
+        Logged-in players, and files like favicon.ico, never count. An address that asks for a path on the trap URL list is blocked straight away.</p>
+      <p class="trap-file">Trap URL list: <code>${esc(t.file || '')}</code></p>
+      ${t.in_web_root ? '<p class="trap-warn">This file is inside the web root, so anyone could read it. Move it to a folder above the site and set <code>trap_list_file</code> in <code>api/config.php</code>.</p>' : ''}
+      ${status}
+      ${t.found && (t.patterns || []).length ? `<details class="trap-patterns"><summary>Show the patterns</summary><pre>${esc(t.patterns.join('\n'))}</pre></details>` : ''}
+      ${t.found && t.writable ? `<form class="inline-form" id="trap-form">
+        <label>Add a path<input type="text" name="pattern" required maxlength="190" placeholder="/wp-admin*" autocomplete="off" spellcheck="false"></label>
+        <div><button class="btn small" type="submit">Add to the trap list</button></div></form>` : ''}
+      ${misses.length ? `<h4>Missing pages asked for in the last 7 days</h4>
+        <div class="table-wrap"><table class="league misses"><thead><tr><th scope="col" class="name">Address</th><th scope="col">Times</th><th scope="col">IPs</th><th scope="col">Last</th><th scope="col"><span class="visually-hidden">Action</span></th></tr></thead>
+        <tbody>${rows}</tbody></table></div>` : '<p class="muted">No missing pages asked for in the last 7 days.</p>'}`;
+  }
 
   async function adminActivity(page = 1, action = '', q = '') {
     const [data, blocks] = await Promise.all([api('admin.log', { query: { page, action, q } }), api('admin.blocks')]);
@@ -1942,6 +1968,7 @@
           Every block is a strike, and so is each try from a blocked address. Lifting a block or ban clears its strikes. Your address is ${esc(blocks.your_ip)}.</p>
         ${banned.length ? `<h3>Banned permanently</h3><ul class="admin-list">${banned.map(item).join('')}</ul>` : ''}
         ${temp.length ? `${banned.length ? '<h3>Blocked for now</h3>' : ''}<ul class="admin-list">${temp.map(item).join('')}</ul>` : '<p class="muted">No addresses are blocked right now.</p>'}
+        ${trapSection(blocks)}
         <form class="inline-form" id="ban-form">
           <label>Ban an address<input type="text" name="ip" required placeholder="203.0.113.7" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
           <label>Reason (optional)<input type="text" name="reason" maxlength="80" placeholder="e.g. spam sign-ups"></label>
@@ -1990,6 +2017,19 @@
         adminActivity(page, action, q).catch(errorPage);
       } catch (err) { formError(banForm, err.message); }
     });
+    const addTrap = async (pattern, btn) => {
+      const d = await submitting(btn, () => api('admin.traplist.add', { method: 'POST', body: { pattern } }));
+      toast(`Added ${(d && d.added) || pattern} to the trap list.`);
+      adminActivity(page, action, q).catch(errorPage);
+    };
+    const trapForm = document.getElementById('trap-form');
+    if (trapForm) trapForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try { await addTrap(trapForm.pattern.value.trim(), trapForm.querySelector('button')); } catch (err) { formError(trapForm, err.message); }
+    });
+    main.querySelectorAll('[data-trap]').forEach((b) => b.addEventListener('click', async () => {
+      try { await addTrap(b.dataset.trap, b); } catch (err) { toast(err.message, true); }
+    }));
     main.querySelectorAll('[data-unblock]').forEach((b) => b.addEventListener('click', async () => {
       try {
         await submitting(b, () => api('admin.unblock', { method: 'POST', body: { ip: b.dataset.unblock } }));

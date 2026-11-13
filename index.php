@@ -1,4 +1,15 @@
 <?php
+// Anything other than the home page that reaches this file is an address
+// that doesn't exist (nginx sends unknown paths here): answer 404, and count
+// it towards blocking. The app itself only uses #/ addresses.
+(function () {
+  $base = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/index.php'))), '/');
+  $path = explode('?', (string)($_SERVER['REQUEST_URI'] ?? '/'), 2)[0];
+  if (!in_array($path, [$base . '/', $base . '/index.php', $base], true)) {
+    require __DIR__ . '/notfound.php';
+    exit;
+  }
+})();
 // The app's page. Each asset's address includes its last-modified time, so
 // browsers and Cloudflare fetch new versions as soon as files are uploaded,
 // even though the server tells them to cache assets for a long time.

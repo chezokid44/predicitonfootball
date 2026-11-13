@@ -306,3 +306,15 @@ CREATE TABLE IF NOT EXISTS `plstore` (
           `updated` DATETIME NOT NULL,
           PRIMARY KEY (`lid`, `name`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
+
+-- Requests for pages that don't exist (kept 7 days), for NOTFOUND_LIMIT.
+CREATE TABLE IF NOT EXISTS `plmisses` (
+          `id` INT NOT NULL AUTO_INCREMENT,
+          `lid` INT NOT NULL DEFAULT 0,
+          `ip` VARCHAR(45) NOT NULL,
+          `path` VARCHAR(190) NOT NULL,
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`id`),
+          KEY `idx_ip_created` (`lid`, `ip`, `created`),
+          KEY `idx_created` (`lid`, `created`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;

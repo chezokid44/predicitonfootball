@@ -148,6 +148,9 @@ api/config.sample.php    example settings (the installer writes api/config.php)
 install/index.php        the installer (locks itself once set up)
 install/installer.php    installer logic (refuses direct requests)
 hp/, wp-login.php, xmlrpc.php   bot traps (see Security)
+notfound.php             answers addresses that don't exist (404) and counts
+                         them towards blocking (see Security)
+.htaccess                Apache: sends missing pages to notfound.php
 robots.txt               keeps search engines out of the trap and the API
 sql/upgrade.sql          optional: manual upgrade of an old database
 uploads/icons/           player pictures (must be writable by PHP)
@@ -220,6 +223,27 @@ Rules: `BOT_CHECK`, `BOT_POW_BITS`, `BOT_BLOCK_HOURS`):
 - *Trap pages.* A hidden link to `hp/` (which `robots.txt` tells well-behaved
   crawlers to skip), plus `wp-login.php` and `xmlrpc.php`, the addresses attack
   bots probe on every site. Visiting one blocks the address.
+- *Missing pages.* An address that asks for `NOTFOUND_LIMIT` pages that don't
+  exist (5 by default; 0 turns this off) within 10 minutes is blocked: one
+  strike. Logged-in players, and files browsers ask for on their own
+  (`favicon.ico`, `apple-touch-icon.png`, `/.well-known/`, `sitemap.xml` and
+  the like), never count. Admin > Activity lists the missing addresses asked
+  for in the last 7 days, with how often and from how many addresses.
+- *Trap URL list.* A text file **outside the web root**, so it can never be
+  downloaded: by default `pl-trap-urls.txt` in the folder above the site (on
+  CloudPanel that's `/home/<site-user>/htdocs/pl-trap-urls.txt` when the site
+  is in `/home/<site-user>/htdocs/<domain>/`). Set `'trap_list_file' =>
+  '/full/path/traps.txt'` in `api/config.php` to keep it elsewhere. Any
+  address that asks for a path on the list is blocked straight away. It's
+  created the first time it's needed, with the paths attack bots probe most
+  (`/wp-admin*`, `/.env*`, `/.git*`, `/phpmyadmin*` and so on), if PHP can
+  write to that folder; otherwise create it yourself. One path per line, `#`
+  starts a comment, `*` matches anything (`/wp-admin*`, `/*.sql`), case and
+  anything after `?` are ignored. Only addresses that don't exist are
+  checked, so a pattern can't block a real page. Edit it with the File
+  Manager or SSH, or press **Add to list** next to a missing page in Admin >
+  Activity (when PHP can write to the file). Admin > Activity shows where the
+  file is, how many patterns it has, and warns if it's inside the web root.
 - *Puzzle.* While someone fills in the form, the browser solves a small
   proof-of-work puzzle (about a quarter of a second on a computer). Each puzzle
   works once, can't be answered in under a second, and gets harder for
@@ -244,6 +268,20 @@ Rules: `BOT_CHECK`, `BOT_POW_BITS`, `BOT_BLOCK_HOURS`):
 **Uploaded pictures are rebuilt by the server.** Each upload is checked,
 cropped and saved as a new PNG with a random name, so nothing hidden in the
 original file survives.
+
+**Missing pages on nginx (CloudPanel).** Unknown addresses already reach
+`index.php`, which answers 404 and counts them. Missing `.php` files and
+blocked files (like `/.env`) are answered by nginx itself, so add this line to
+the site's Vhost, inside the `server { }` block that has the `root` line and
+`location ~ \.php$` (with Varnish on, that's the one that listens on 8080):
+
+```nginx
+error_page 403 404 = /notfound.php;
+```
+
+Then press **Save**. On Apache the included `.htaccess` does the same (put the
+folder in front, e.g. `/league/notfound.php`, if the site isn't at the top of
+the domain). Put your own address in `never_block_ips` before testing.
 
 **Extra layer for nginx (CloudPanel).** In CloudPanel open the site, then
 **Vhost**, and add this **above** the `location ~ \.php$` block. It blocks every
@@ -346,8 +384,9 @@ UPDATE pluserdata SET usertype = 4 WHERE username = 'their-username';
   (addresses blocked by the bot traps), `plleagues`, `plleaguecomps`,
   `plleaguemembers` (private leagues), `plfollows` (the competitions each
   player plays), `plpages`, `plmenu`, `plseasons`, `plteams` and
-  `plcompteams` (the teams in each competition each season), `plpostponed`
-  and `plstore` (the Discord webhook and alert bookkeeping). They're created automatically the first time
+  `plcompteams` (the teams in each competition each season), `plpostponed`,
+  `plstore` (the Discord webhook and alert bookkeeping) and `plmisses`
+  (missing pages asked for, kept 7 days). They're created automatically the first time
   they're needed, by the installer, or by `sql/upgrade.sql`. The old tables
   aren't altered apart from the wider password column.
 - **Automatic predictions** are filled in the next time anyone uses the site

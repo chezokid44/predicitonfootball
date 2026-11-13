@@ -41,6 +41,11 @@ return [
   // Addresses that are never blocked by the bot traps (for example your own).
   'never_block_ips' => [],
 
+  // The trap URL list: one path per line; asking for one blocks the address.
+  // Keep it outside the web root. Leave null for pl-trap-urls.txt in the
+  // folder above the site.
+  'trap_list_file' => null,
+
   // When no admin user exists yet, the next person to register becomes
   // admin. Leave false unless you have no other way to create an admin.
   'first_user_becomes_admin' => false,

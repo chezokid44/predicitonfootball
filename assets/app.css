@@ -699,6 +699,14 @@ fieldset[disabled] .check { opacity: 0.6; }
 .admin-item.is-banned { border-left: 4px solid var(--coupon); padding-left: 10px; }
 .blocks h3 { margin: 18px 0 6px; }
 #ban-form { margin-top: 16px; }
+.blocks h4 { margin: 14px 0 6px; font-size: 1rem; }
+.trap-file code { word-break: break-all; }
+.trap-warn { border-left: 4px solid var(--coupon); padding: 6px 10px; background: var(--surface); }
+.trap-patterns pre { max-height: 16rem; overflow: auto; background: var(--surface); padding: 8px 10px; font-size: 0.85rem; }
+#trap-form { margin: 8px 0 12px; }
+table.misses td.name code { overflow-wrap: anywhere; }
+table.misses .btn { white-space: nowrap; }
+@media (max-width: 600px) { table.misses th:nth-child(4), table.misses td:nth-child(4) { display: none; } }
 main.banned { max-width: 34rem; margin: 15vh auto; padding: 0 16px; font-family: system-ui, sans-serif; color: #1C2B4A; }
 
 /* ---------- League tables (teams) ---------- */
