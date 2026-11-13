@@ -517,6 +517,51 @@ function not_found_home(): string {
   return $base . '/';
 }
 
+/** Whether open_basedir (if set) lets PHP open $path. */
+function path_allowed(string $path): bool {
+  $ob = trim((string)ini_get('open_basedir'));
+  if ($ob === '') return true;
+  $path = str_replace('\\', '/', $path);
+  foreach (explode(PATH_SEPARATOR, $ob) as $dir) {
+    $dir = str_replace('\\', '/', trim($dir));
+    if ($dir === '') continue;
+    if ($dir === '.') $dir = str_replace('\\', '/', (string)getcwd());
+    if (str_starts_with($path, $dir) || str_starts_with($path . '/', rtrim($dir, '/') . '/')) return true;
+  }
+  return false;
+}
+
+/** Why the trap list can't be read, in words an admin can act on (null if it can). */
+function trap_list_problem(string $file): ?string {
+  $name = basename($file);
+  $dir = dirname($file);
+  $ob = trim((string)ini_get('open_basedir'));
+  if (!path_allowed($file)) {
+    return "PHP isn't allowed to open files in $dir: the site's open_basedir setting only allows $ob. "
+         . "Either add $dir to open_basedir (CloudPanel: Sites > your site > Settings > PHP Settings), "
+         . "or keep the file in an allowed folder outside the site's folder and set 'trap_list_file' in api/config.php to its full path.";
+  }
+  if (!@is_dir($dir)) return "PHP can't see the folder $dir: it doesn't exist, or the site's user isn't allowed into it.";
+  if (@file_exists($file)) {
+    if (!@is_file($file)) return "$file is a folder, not a file.";
+    if (!@is_readable($file)) {
+      return "$name is there, but the site's user can't read it (it was probably uploaded as another user, such as root). "
+           . "Make it belong to the site's user and readable, e.g. chown <site-user>:<site-user> $file && chmod 644 $file.";
+    }
+    return null;
+  }
+  $names = @scandir($dir);
+  if ($names === false) {
+    return "PHP can't list the folder $dir, so it can't find $name. Check the folder belongs to the site's user (or allows it to read and enter it).";
+  }
+  foreach ($names as $n) {
+    if (strcasecmp($n, $name) !== 0 && stripos($n, 'trap') !== false) {
+      return "There's no $name in $dir, but there is $n. Rename it to exactly $name (check it hasn't got an extra .txt on the end).";
+    }
+  }
+  return "There's no $name in $dir, and PHP can't create it there (the folder isn't writable by the site's user). Upload it to $dir, or set 'trap_list_file' in api/config.php.";
+}
+
 /** For Admin > Activity: where the trap list is and what's in it. */
 function trap_list_status(): array {
   $file = trap_list_file();
@@ -532,6 +577,9 @@ function trap_list_status(): array {
     'writable' => $text !== null && @is_writable($file),
     'patterns' => $text !== null ? trap_patterns($text) : [],
     'in_web_root' => $inside,
+    'problem' => $text === null ? trap_list_problem($file) : null,
+    'site_folder' => dirname(__DIR__),
+    'open_basedir' => (string)ini_get('open_basedir'),
   ];
 }
 

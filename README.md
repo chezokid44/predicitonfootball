@@ -244,6 +244,10 @@ Rules: `BOT_CHECK`, `BOT_POW_BITS`, `BOT_BLOCK_HOURS`):
   Manager or SSH, or press **Add to list** next to a missing page in Admin >
   Activity (when PHP can write to the file). Admin > Activity shows where the
   file is, how many patterns it has, and warns if it's inside the web root.
+  If the file can't be read, it says why: PHP's `open_basedir` doesn't allow
+  that folder, the file belongs to another user (e.g. uploaded as root), or
+  it's misnamed (`pl-trap-urls.txt.txt`). It also shows the site's folder and
+  what `open_basedir` allows.
 - *Puzzle.* While someone fills in the form, the browser solves a small
   proof-of-work puzzle (about a quarter of a second on a computer). Each puzzle
   works once, can't be answered in under a second, and gets harder for

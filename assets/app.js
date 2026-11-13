@@ -1929,7 +1929,8 @@
     const t = blocks.trap_list || {};
     const misses = blocks.misses || [];
     const status = !t.found
-      ? `<p class="trap-warn">The file isn't there and couldn't be created. Create it yourself (one path per line), or set <code>trap_list_file</code> in <code>api/config.php</code>.</p>`
+      ? `<p class="trap-warn"><strong>The trap list can't be read.</strong> ${esc(t.problem || 'The file isn\'t there and couldn\'t be created.')}</p>
+         <p class="muted">The site's folder is <code>${esc(t.site_folder || '')}</code>${t.open_basedir ? `; open_basedir allows <code>${esc(t.open_basedir)}</code>` : ''}.</p>`
       : `<p class="muted">${esc(plural((t.patterns || []).length, 'pattern'))}${t.writable ? '' : '. The web server can\'t write to it, so add paths to it yourself'}.</p>`;
     const rows = misses.map((m) => `<tr>
         <td class="name"><code>${esc(m.path)}</code>${m.trapped ? ' <span class="tag">On the list</span>' : ''}</td>

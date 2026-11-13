@@ -5,6 +5,14 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.7.1 (13 November 2026)
+
+- Admin > Activity now says why the trap URL list can't be read: PHP's
+  `open_basedir` doesn't allow its folder, the file belongs to another user,
+  the folder can't be seen or listed, or the file is misnamed (for example
+  `pl-trap-urls.txt.txt`). It also shows the site's folder and what
+  `open_basedir` allows.
+
 ## v2.7.0 (13 November 2026)
 
 **Missing pages count towards blocking, plus a trap URL list:**
