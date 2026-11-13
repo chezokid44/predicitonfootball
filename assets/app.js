@@ -1431,7 +1431,7 @@
 
   async function adminSettings() {
     const { settings } = await api('admin.settings');
-    const groups = { 1: 'Scoring', 2: 'League', 3: 'Rules', 5: 'Email', 6: 'Block alerts' };
+    const groups = { 1: 'Scoring', 2: 'League', 3: 'Rules', 5: 'Email', 6: 'Block alerts', 7: 'Discord alerts' };
     const relevant = settings.filter((s) => !/^(Old script only|Not used in scoring)/.test(s.description) &&
       !['DEF_ICON', 'ADMIN_SIGNATURE', 'CHATROOM_URL', 'LOGFILE', 'DEFAULT_LANGUAGE', 'TZ_OFFSET'].includes(s.key));
     let html = `<p class="lede">Changes take effect straight away. Scoring changes recalculate the whole table.</p><form id="settings-form">`;
@@ -1468,6 +1468,18 @@
           <button class="btn quiet small" type="button" id="send-alert">Send the list now</button>
           <span class="muted">Save your changes first.</span></div>`;
       }
+      if (g === '7') {
+        html += `<div class="discord-box">
+          <p class="muted tight">Posts alerts in a Discord channel as well, in case email fails. In Discord: <strong>Server settings &gt; Integrations &gt; Webhooks &gt; New webhook</strong>,
+            choose the channel, then <strong>Copy webhook URL</strong> and paste it here.</p>
+          <p id="discord-status" class="muted">Checking…</p>
+          <label>Webhook URL<input type="url" id="discord-url" autocomplete="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/…"></label>
+          <div class="test-mail"><button class="btn small" type="button" id="discord-save">Save webhook</button>
+            <button class="btn quiet small" type="button" id="discord-test">Send a test message</button>
+            <button class="btn quiet small danger" type="button" id="discord-remove" hidden>Remove webhook</button></div>
+          <p class="hint">The webhook address is saved straight away (it isn't part of Save settings) and never shown again. Anyone with it can post in that channel, so keep it private.</p>
+        </div>`;
+      }
       html += `</fieldset>`;
     }
     html += `<div class="savebar"><button class="btn" type="submit">Save settings</button>
@@ -1496,6 +1508,39 @@
         toast(`Test email sent to ${res.sent_to}. Check that inbox (and its spam folder).`);
       } catch (err) { toast(err.message, true); }
     });
+    // Discord webhook: saved on its own, never shown again.
+    const dStatus = document.getElementById('discord-status');
+    if (dStatus) {
+      const showDiscord = (d) => {
+        dStatus.textContent = d.webhook ? `Connected: ${d.webhook}.` : 'No webhook saved yet, so nothing is posted to Discord.';
+        dStatus.classList.toggle('muted', !d.webhook);
+        document.getElementById('discord-remove').hidden = !d.webhook;
+        document.getElementById('discord-test').disabled = !d.webhook;
+      };
+      api('admin.discord').then(showDiscord).catch(() => { dStatus.textContent = 'Couldn\'t check the Discord set-up.'; });
+      document.getElementById('discord-save').addEventListener('click', async (e) => {
+        const url = document.getElementById('discord-url').value.trim();
+        if (!url) { toast('Paste the webhook URL from Discord first.', true); return; }
+        try {
+          showDiscord(await submitting(e.currentTarget, () => api('admin.discord.save', { method: 'POST', body: { webhook: url } })));
+          document.getElementById('discord-url').value = '';
+          toast('Webhook saved. Send a test message to check it.');
+        } catch (err) { toast(err.message, true); }
+      });
+      document.getElementById('discord-test').addEventListener('click', async (e) => {
+        try {
+          await submitting(e.currentTarget, () => api('admin.discord.test', { method: 'POST', body: {} }));
+          toast('Test message posted. Check the Discord channel.');
+        } catch (err) { toast(err.message, true); }
+      });
+      const rm = document.getElementById('discord-remove');
+      rm.addEventListener('click', () => armed(rm, 'Click again to remove', async () => {
+        try {
+          showDiscord(await api('admin.discord.save', { method: 'POST', body: { webhook: '' } }));
+          toast('Webhook removed. Nothing more will be posted to Discord.');
+        } catch (err) { toast(err.message, true); }
+      }));
+    }
     const testAlert = document.getElementById('test-alert');
     if (testAlert) {
       testAlert.addEventListener('click', async (e) => {
@@ -1507,7 +1552,7 @@
       document.getElementById('send-alert').addEventListener('click', async (e) => {
         try {
           const res = await submitting(e.currentTarget, () => api('admin.alertsend', { method: 'POST', body: {} }));
-          toast(res.status === 'sent' ? `Sent the list of ${plural(res.count, 'blocked address', 'blocked addresses')} to ${res.to.join(', ')}.`
+          toast(res.status === 'sent' ? `Sent the list of ${plural(res.count, 'blocked address', 'blocked addresses')} to ${res.to.join(', ')}.${res.errors && res.errors.length ? ` Not sent by: ${res.errors.join(' ')}` : ''}`
             : 'No addresses have been blocked since the last list, so nothing was sent.');
         } catch (err) { toast(err.message, true); }
       });
@@ -1868,7 +1913,7 @@
   }
 
   const ACTION_LABELS = {
-    ban: 'Banned', block_alert: 'Block alert sent',
+    ban: 'Banned', block_alert: 'Block alert sent', discord_failed: 'Discord post failed', discord_test: 'Discord test',
     login: 'Logged in', login_failed: 'Failed log-in', logout: 'Logged out', register: 'Joined', account: 'Account change',
     reset_request: 'Reset requested', password_reset: 'Password reset', reset_link: 'Reset link', icon: 'Picture',
     message_all: 'Message to all', fixture_add: 'Fixture added', fixture_edit: 'Fixture edited', fixture_delete: 'Fixture deleted',
@@ -1904,7 +1949,7 @@
         </form>
       </section>`;
     const opts = data.actions.map((a) => `<option value="${esc(a)}"${a === action ? ' selected' : ''}>${esc(ACTION_LABELS[a] || a)}</option>`).join('');
-    const rows = data.rows.map((r) => `<tr class="${r.action === 'login_failed' || r.action === 'mail_failed' ? 'warn' : ''}">
+    const rows = data.rows.map((r) => `<tr class="${['login_failed', 'mail_failed', 'discord_failed', 'ban'].includes(r.action) ? 'warn' : ''}">
         <td class="nowrap">${esc(fmtShort(r.created))}</td>
         <td class="name">${esc(r.username || '–')}</td>
         <td class="name">${esc(ACTION_LABELS[r.action] || r.action)}</td>

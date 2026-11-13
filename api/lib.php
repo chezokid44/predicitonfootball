@@ -394,6 +394,9 @@ function default_settings(): array {
     'ALERT_SMTP_SECURE' => [6, 'tls', 'Alerts SMTP encryption.', 'select', ['tls' => 'TLS (STARTTLS)', 'ssl' => 'SSL', 'none' => 'None']],
     'ALERT_SMTP_USER'   => [6, '', 'Alerts SMTP user name.', 'text'],
     'ALERT_SMTP_PASS'   => [6, '', 'Alerts SMTP password. Stored on the server and never shown again.', 'secret'],
+    'DISCORD_BLOCKS'    => [7, 'TRUE', 'Post the daily list of newly blocked addresses in the Discord channel (as well as emailing it).', 'bool'],
+    'DISCORD_BANS'      => [7, 'TRUE', 'Post in the Discord channel straight away when an address is banned permanently.', 'bool'],
+    'DISCORD_ERRORS'    => [7, 'TRUE', 'Post server errors and emails that couldn\'t be sent in the Discord channel (the same error at most every 30 minutes).', 'bool'],
     'MAIL_FROM'         => [5, '', 'Address emails are sent from, for example league@yourdomain.co.uk. Leave empty to turn email off.', 'email'],
     'MAIL_FROM_NAME'    => [5, '', 'Name emails are sent from. Leave empty to use the league name.', 'text'],
     'MAIL_TRANSPORT'    => [5, 'mail', 'How to send email: the server\'s own mail function, or an SMTP server such as your email provider.', 'select', ['mail' => 'Server mail function', 'smtp' => 'SMTP server']],
@@ -761,7 +764,7 @@ function extra_tables(): array {
           'leagues' => 'plleagues', 'leaguecomps' => 'plleaguecomps', 'members' => 'plleaguemembers',
           'follows' => 'plfollows', 'pages' => 'plpages', 'menu' => 'plmenu',
           'seasons' => 'plseasons', 'teams' => 'plteams', 'compteams' => 'plcompteams',
-          'postponed' => 'plpostponed'];
+          'postponed' => 'plpostponed', 'store' => 'plstore'];
 }
 
 function extra_table_sql(string $name, string $driver): string {
@@ -822,6 +825,17 @@ function extra_table_sql(string $name, string $driver): string {
           `compid` INT NOT NULL,
           PRIMARY KEY (`lid`, `matchid`),
           KEY `idx_comp` (`lid`, `compid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
+  }
+  if ($name === 'store') {
+    return $driver === 'sqlite'
+      ? "CREATE TABLE IF NOT EXISTS {$tables['store']} (lid INT NOT NULL DEFAULT 0, name VARCHAR(40) NOT NULL, value TEXT, updated DATETIME NOT NULL, PRIMARY KEY (lid, name))"
+      : "CREATE TABLE IF NOT EXISTS `{$tables['store']}` (
+          `lid` INT NOT NULL DEFAULT 0,
+          `name` VARCHAR(40) NOT NULL,
+          `value` TEXT,
+          `updated` DATETIME NOT NULL,
+          PRIMARY KEY (`lid`, `name`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
   }
   if ($name === 'postponed') {
@@ -1006,6 +1020,9 @@ function log_event(string $action, string $detail = '', ?array $user = null): vo
     with_table('log', fn() => q('INSERT INTO ' . xt('log') . ' (lid, created, userid, username, ip, action, detail) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [lid(), now_str(), $user['id'] ?? null, isset($user['username']) ? mb_substr($user['username'], 0, 32) : null,
        mb_substr(client_ip(), 0, 45), mb_substr($action, 0, 40), mb_substr($detail, 0, 255)]));
+    // Problems and bans also go to Discord, if it's set up.
+    if ($action === 'mail_failed' && function_exists('discord_error')) discord_error('An email couldn\'t be sent', $detail);
+    if ($action === 'ban' && function_exists('discord_ban')) discord_ban($detail);
     if (random_int(1, 200) === 1) {
       $days = max(7, (int)setting('LOG_DAYS') ?: 365);
       q('DELETE FROM ' . xt('log') . ' WHERE lid = ? AND created < ?', [lid(), date('Y-m-d H:i:s', time() - $days * 86400)]);

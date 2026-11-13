@@ -126,23 +126,42 @@ function send_block_digest(bool $force = false): array {
 
   $to = alert_recipients();
   $account = mail_account_alerts();
-  try {
-    if (!$to) throw new MailError('There\'s no one to send it to. Set BLOCK_ALERT_TO, or give an admin an email address.');
-    if (!mail_account_ok($account)) throw new MailError('The alerts email account isn\'t set up (ALERT_FROM and ALERT_SMTP_HOST).');
-    $subject = '[' . (setting('PRED_LEAGUE_TITLE') ?: 'Prediction League') . '] ' . (count($blocks) === 1 ? '1 address blocked' : count($blocks) . ' addresses blocked');
-    $text = block_digest_text($blocks, $since);
-    foreach ($to as $addr) send_mail($addr, $subject, $text, $account);
-  } catch (MailError $e) {
-    // Put the start back so the same blocks go in the next attempt, an hour from now.
+  $useDiscord = function_exists('discord_webhook') && discord_webhook() !== null && setting_bool('DISCORD_BLOCKS');
+  $useEmail = mail_account_ok($account) || !$useDiscord;  // without Discord, a missing email setup is an error
+  $sentTo = [];
+  $errors = [];
+  // Discord first: if the email then fails, the error is posted after the list.
+  if ($useDiscord) {
+    $err = discord_block_digest($blocks, $since);
+    if ($err === null) $sentTo[] = 'Discord';
+    else {
+      $errors[] = "Discord: $err";
+      log_event('discord_failed', mb_substr("Block alert: $err", 0, 255), ['id' => null, 'username' => null]);
+    }
+  }
+  if ($useEmail) {
+    try {
+      if (!$to) throw new MailError('There\'s no one to send it to. Set BLOCK_ALERT_TO, or give an admin an email address.');
+      if (!mail_account_ok($account)) throw new MailError('The alerts email account isn\'t set up (ALERT_FROM and ALERT_SMTP_HOST).');
+      $subject = '[' . (setting('PRED_LEAGUE_TITLE') ?: 'Prediction League') . '] ' . (count($blocks) === 1 ? '1 address blocked' : count($blocks) . ' addresses blocked');
+      $text = block_digest_text($blocks, $since);
+      foreach ($to as $addr) send_mail($addr, $subject, $text, $account);
+      $sentTo = array_merge($sentTo, $to);
+    } catch (MailError $e) {
+      $errors[] = $e->getMessage();
+      log_event('mail_failed', mb_substr('Block alert email: ' . $e->getMessage(), 0, 255), ['id' => null, 'username' => null]);
+    }
+  }
+  if (!$sentTo) {
+    // Nothing got through: put the start back so the same blocks go in the next attempt, an hour from now.
     q('UPDATE ' . t('config') . ' SET value = ? WHERE lid = ? AND param = ? AND value = ?', [$since, lid(), 'BLOCK_ALERT_LAST', $now]);
     set_alert_state('BLOCK_ALERT_TRIED', $now);
-    log_event('mail_failed', mb_substr('Block alert email: ' . $e->getMessage(), 0, 255), ['id' => null, 'username' => null]);
-    return ['status' => 'failed', 'error' => $e->getMessage(), 'count' => count($blocks)];
+    return ['status' => 'failed', 'error' => implode(' ', $errors), 'count' => count($blocks)];
   }
   set_alert_state('BLOCK_ALERT_TRIED', '');
-  log_event('block_alert', 'Emailed the list of ' . count($blocks) . ' newly blocked address' . (count($blocks) === 1 ? '' : 'es') . ' to ' . implode(', ', $to),
-    ['id' => null, 'username' => null]);
-  return ['status' => 'sent', 'count' => count($blocks), 'to' => $to];
+  log_event('block_alert', 'Sent the list of ' . count($blocks) . ' newly blocked address' . (count($blocks) === 1 ? '' : 'es') . ' to ' . implode(', ', $sentTo)
+    . ($errors ? ' (' . mb_substr(implode(' ', $errors), 0, 120) . ')' : ''), ['id' => null, 'username' => null]);
+  return ['status' => 'sent', 'count' => count($blocks), 'to' => $sentTo, 'errors' => $errors];
 }
 
 /** Called on every API request: if a list is due, send it after the reply has gone. */

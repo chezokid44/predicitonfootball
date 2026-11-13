@@ -18,6 +18,20 @@ require __DIR__ . '/pages.php';
 require __DIR__ . '/seasons.php';
 require __DIR__ . '/alerts.php';
 require __DIR__ . '/standings.php';
+require __DIR__ . '/discord.php';
+
+// Fatal PHP errors (which skip the catch below) are reported to Discord too.
+register_shutdown_function(function () {
+  $e = error_get_last();
+  if ($e && in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+    try {
+      discord_error('Fatal server error', mb_substr($e['message'], 0, 1500) . "\n" . basename((string)$e['file']) . ':' . $e['line']
+        . "\nRoute: " . mb_substr((string)($_GET['r'] ?? ''), 0, 40));
+    } catch (Throwable $t) {
+      // nothing more we can do
+    }
+  }
+});
 
 try {
   date_default_timezone_set((string)cfg('timezone'));
@@ -26,7 +40,7 @@ try {
 
   $route = (string)($_GET['r'] ?? '');
   $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-  $routes = routes() + feature_routes() + botguard_routes() + league_routes() + page_routes() + season_routes() + alert_routes() + standings_routes();
+  $routes = routes() + feature_routes() + botguard_routes() + league_routes() + page_routes() + season_routes() + alert_routes() + standings_routes() + discord_routes();
   if (!isset($routes[$route])) {
     fail(404, 'Unknown API route.');
   }
@@ -50,6 +64,12 @@ try {
   respond(['error' => $e->getMessage(), 'code' => $e->errorCode], $e->status);
 } catch (Throwable $e) {
   error_log('Prediction League API: ' . $e);
+  try {
+    discord_error('Server error', mb_substr($e->getMessage(), 0, 1500) . "\n" . get_class($e) . ' in ' . basename($e->getFile()) . ':' . $e->getLine()
+      . "\nRoute: " . mb_substr((string)($_GET['r'] ?? ''), 0, 40) . ' (' . ($_SERVER['REQUEST_METHOD'] ?? '') . ')');
+  } catch (Throwable $t) {
+    // the database may be the problem: the PHP error log still has it
+  }
   $message = cfg('debug') ? $e->getMessage() : 'Something went wrong on the server. Check the PHP error log for details.';
   respond(['error' => $message], 500);
 }

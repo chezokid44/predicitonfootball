@@ -5,6 +5,22 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.6.0 (13 November 2026)
+
+**Discord alerts** (Admin > Settings > Discord alerts), in case email fails:
+- Paste a Discord channel's webhook URL; it's saved on its own (in the new
+  `plstore` table, as it's longer than settings allow), never shown again and
+  kept out of backups. "Send a test message" checks it.
+- `DISCORD_BLOCKS`: the daily list of blocked addresses also goes to Discord,
+  and still goes there if the email fails (retried in an hour only if both fail).
+- `DISCORD_BANS`: permanent bans are posted as they happen.
+- `DISCORD_ERRORS`: server errors, fatal PHP errors and emails that couldn't
+  be sent are posted, the same error at most every 30 minutes and at most 20
+  an hour.
+- Posts go after the visitor's page has been sent; failed posts are logged
+  ("Discord post failed") without looping.
+- Admin > Activity highlights bans and Discord failures.
+
 ## v2.5.2 (10 November 2026)
 
 - Fix: the score boxes on Admin > Results were stretched to full width after

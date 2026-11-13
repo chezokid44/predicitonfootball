@@ -297,3 +297,12 @@ CREATE TABLE IF NOT EXISTS `plpostponed` (
           `created` DATETIME NOT NULL,
           PRIMARY KEY (`lid`, `matchid`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
+
+-- Values too long for plconfigdata (the Discord webhook) and alert bookkeeping.
+CREATE TABLE IF NOT EXISTS `plstore` (
+          `lid` INT NOT NULL DEFAULT 0,
+          `name` VARCHAR(40) NOT NULL,
+          `value` TEXT,
+          `updated` DATETIME NOT NULL,
+          PRIMARY KEY (`lid`, `name`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;

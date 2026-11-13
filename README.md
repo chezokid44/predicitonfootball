@@ -139,6 +139,7 @@ api/lib.php              shared functions (refuses direct requests)
 api/features.php         messaging, pictures, resets, log, backup, CSV
 api/mailer.php           sending email (PHP mail() or SMTP)
 api/alerts.php           the daily email of blocked addresses
+api/discord.php          posting alerts and errors to a Discord channel
 api/leagues.php          competition tables and private leagues
 api/pages.php            admin-written pages and the menu
 api/seasons.php          seasons, teams and team badges
@@ -302,6 +303,23 @@ needed. If sending fails, it's logged in Admin > Activity and tried again an
 hour later with the same list. "Send a test alert" checks the account, and
 "Send the list now" sends whatever is new straight away.
 
+**Discord alerts** (Admin > Settings > Discord alerts) post into a Discord
+channel too, in case email fails. In Discord, open Server settings >
+Integrations > Webhooks > New webhook, choose the channel, copy the webhook URL
+and paste it into the site (it's saved straight away, never shown again, and
+kept out of backups). Then choose what's posted:
+- `DISCORD_BLOCKS`: the daily list of newly blocked addresses. It goes to
+  Discord whether or not the email works; if both fail it's tried again an
+  hour later.
+- `DISCORD_BANS`: each address banned permanently, as it happens.
+- `DISCORD_ERRORS`: server errors (including fatal PHP errors) and any email
+  that couldn't be sent. The same error is posted at most once every 30
+  minutes, and at most 20 errors an hour.
+Posts are sent after the visitor's page has gone. If Discord refuses a post,
+that's logged in Admin > Activity ("Discord post failed"). The server needs to
+be able to make outgoing HTTPS connections (PHP's curl extension is used if
+it's there).
+
 Without email, players can't reset their own password. Admins can still create
 a reset link on the Players page and send it to them.
 
@@ -328,8 +346,8 @@ UPDATE pluserdata SET usertype = 4 WHERE username = 'their-username';
   (addresses blocked by the bot traps), `plleagues`, `plleaguecomps`,
   `plleaguemembers` (private leagues), `plfollows` (the competitions each
   player plays), `plpages`, `plmenu`, `plseasons`, `plteams` and
-  `plcompteams` (the teams in each competition each season) and
-  `plpostponed`. They're created automatically the first time
+  `plcompteams` (the teams in each competition each season), `plpostponed`
+  and `plstore` (the Discord webhook and alert bookkeeping). They're created automatically the first time
   they're needed, by the installer, or by `sql/upgrade.sql`. The old tables
   aren't altered apart from the wider password column.
 - **Automatic predictions** are filled in the next time anyone uses the site
