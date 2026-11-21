@@ -785,3 +785,15 @@ table.preview tr.st-new td:last-child { color: #1d7a46; }
 .discord-box { display: grid; gap: 10px; padding: 12px 14px; background: var(--surface); border-left: 4px solid #5865F2; }
 .discord-box p { margin: 0; }
 #discord-status:not(.muted) { color: var(--good); font-weight: 600; }
+
+/* Points adjustments on the league tables */
+.adj-mark { color: var(--coupon); font-weight: 700; margin-left: 1px; }
+.adj-notes { list-style: none; padding: 0; margin: 8px 0 4px; font-size: 0.9rem; }
+.adj-notes li { margin: 2px 0; }
+.adj-admin { margin-top: 20px; border: 1px solid var(--rule); padding: 8px 12px; background: var(--surface); }
+.adj-admin summary { cursor: pointer; font-weight: 600; }
+.adj-list { list-style: none; padding: 0; margin: 8px 0; }
+.adj-list li { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--rule); }
+#adj-form { margin-top: 8px; }
+#adj-form .adj-points input { max-width: 6rem; }
+#adj-form .error { flex-basis: 100%; margin: 0; }

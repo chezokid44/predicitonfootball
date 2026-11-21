@@ -765,7 +765,7 @@ function extra_tables(): array {
           'leagues' => 'plleagues', 'leaguecomps' => 'plleaguecomps', 'members' => 'plleaguemembers',
           'follows' => 'plfollows', 'pages' => 'plpages', 'menu' => 'plmenu',
           'seasons' => 'plseasons', 'teams' => 'plteams', 'compteams' => 'plcompteams',
-          'postponed' => 'plpostponed', 'store' => 'plstore', 'misses' => 'plmisses'];
+          'postponed' => 'plpostponed', 'store' => 'plstore', 'misses' => 'plmisses', 'pointadj' => 'plpointadj'];
 }
 
 function extra_table_sql(string $name, string $driver): string {
@@ -826,6 +826,22 @@ function extra_table_sql(string $name, string $driver): string {
           `compid` INT NOT NULL,
           PRIMARY KEY (`lid`, `matchid`),
           KEY `idx_comp` (`lid`, `compid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
+  }
+  if ($name === 'pointadj') {
+    return $driver === 'sqlite'
+      ? "CREATE TABLE IF NOT EXISTS {$tables['pointadj']} (id INTEGER PRIMARY KEY AUTOINCREMENT, lid INT NOT NULL DEFAULT 0, compid INT NOT NULL, seasonid INT NOT NULL DEFAULT 0, team VARCHAR(60) NOT NULL, points INT NOT NULL, reason VARCHAR(100) NOT NULL DEFAULT '', created DATETIME NOT NULL)"
+      : "CREATE TABLE IF NOT EXISTS `{$tables['pointadj']}` (
+          `id` INT NOT NULL AUTO_INCREMENT,
+          `lid` INT NOT NULL DEFAULT 0,
+          `compid` INT NOT NULL,
+          `seasonid` INT NOT NULL DEFAULT 0,
+          `team` VARCHAR(60) NOT NULL,
+          `points` INT NOT NULL,
+          `reason` VARCHAR(100) NOT NULL DEFAULT '',
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`id`),
+          KEY `idx_comp_season` (`lid`, `compid`, `seasonid`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
   }
   if ($name === 'misses') {

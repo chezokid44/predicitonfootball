@@ -107,6 +107,13 @@ settings carry over.
   one wins. Pages can show a
   small table with `[[standings PL]]`. Existing sites with a saved menu can
   add "League tables" in Admin > Pages > Menu.
+- Points adjustments: for a team that started on -4, was fined, or was
+  awarded points. Admins open "Points adjustments (admin)" under a league
+  table, pick the team, enter the points (-4, or +3) and a reason, and press
+  Add. It applies to that competition and season only; the team's points get
+  a * and the reason is shown under the table. Several adjustments for one
+  team add up, and each can be removed. They're in backups, and in the
+  "All seasons" view.
 - Import fixtures and results (Admin > Data): from a CSV with Date, Time,
   Home, Away and optionally Competition and Result columns, or a fixture-list
   download such as fixturedownload.com's (Date "14/08/2026 20:00", Home Team,
@@ -389,8 +396,9 @@ UPDATE pluserdata SET usertype = 4 WHERE username = 'their-username';
   `plleaguemembers` (private leagues), `plfollows` (the competitions each
   player plays), `plpages`, `plmenu`, `plseasons`, `plteams` and
   `plcompteams` (the teams in each competition each season), `plpostponed`,
-  `plstore` (the Discord webhook and alert bookkeeping) and `plmisses`
-  (missing pages asked for, kept 7 days). They're created automatically the first time
+  `plstore` (the Discord webhook and alert bookkeeping), `plmisses`
+  (missing pages asked for, kept 7 days) and `plpointadj` (league table
+  points adjustments). They're created automatically the first time
   they're needed, by the installer, or by `sql/upgrade.sql`. The old tables
   aren't altered apart from the wider password column.
 - **Automatic predictions** are filled in the next time anyone uses the site

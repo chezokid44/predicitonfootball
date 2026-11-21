@@ -5,6 +5,17 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.8.0 (21 November 2026)
+
+**Points adjustments on the league tables**, e.g. a team starting on -4:
+- Admins open "Points adjustments (admin)" under a league table, choose the
+  team, enter the points (-4, +3...) and a reason, and press Add.
+- Applies to that competition and season only. The team's points get a *,
+  and the reason is listed under the table for everyone. Several adjustments
+  add up; each can be removed. A team with no games yet still appears.
+- Included in backups and restores, and logged in Admin > Activity.
+- New table `plpointadj`.
+
 ## v2.7.1 (13 November 2026)
 
 - Admin > Activity now says why the trap URL list can't be read: PHP's

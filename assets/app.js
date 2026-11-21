@@ -1920,7 +1920,7 @@
     fixtures_import: 'Fixtures imported', result: 'Result', settings: 'Settings', player_add: 'Player added',
     player_admin: 'Admin rights', player_delete: 'Player deleted', recalculate: 'Recalculated', backup: 'Backup',
     restore: 'Restore', mail_test: 'Test email', mail_failed: 'Email failed',
-    bot_trap: 'Bot trap', bot_honeypot: 'Bot caught (hidden field)', bot_check_failed: 'Bot check failed', unblock: 'Block lifted', not_found: 'Missing pages', traplist: 'Trap URL list',
+    bot_trap: 'Bot trap', bot_honeypot: 'Bot caught (hidden field)', bot_check_failed: 'Bot check failed', unblock: 'Block lifted', not_found: 'Missing pages', traplist: 'Trap URL list', pointadj: 'Points adjustment',
     auto_predict: 'Automatic predictions', competition: 'Competition', prefs: 'Preferences',
   };
 
@@ -3370,10 +3370,12 @@
       const z = [p ? `zc-${p.colour}` : '', i > 0 && p !== prev ? 'place-edge' : ''].filter(Boolean).join(' ');
       prev = p;
       const gd = `${r.diff > 0 ? '+' : ''}${r.diff}`;
+      const adj = r.adjust ? `<span class="adj-mark" title="Includes ${esc(signed(r.adjust))} ${Math.abs(r.adjust) === 1 ? 'point' : 'points'} adjustment">*</span>` : '';
+      const pts = `<td class="pts">${r.points}${adj}</td>`;
       const cells = compact
-        ? `<td>${r.played}</td><td>${gd}</td><td class="pts">${r.points}</td>`
+        ? `<td>${r.played}</td><td>${gd}</td>${pts}`
         : `<td>${r.played}</td><td>${r.won}</td><td>${r.drawn}</td><td>${r.lost}</td><td class="wide">${r.for}</td><td class="wide">${r.against}</td>
-           <td>${gd}</td><td class="pts">${r.points}</td><td class="form-col">${formChips(r.form)}</td>`;
+           <td>${gd}</td>${pts}<td class="form-col">${formChips(r.form)}</td>`;
       const crestImg = r.badge ? `<img class="crest" src="${esc(r.badge)}" alt="" width="22" height="22" loading="lazy">` : '<span class="crest" aria-hidden="true"></span>';
       return `<tr${z ? ` class="${z}"` : ''}${p && p.label ? ` title="${esc(p.label)}"` : ''}><td class="pos">${r.position}</td>
         <td class="name"><span class="team-cell">${crestImg}<span class="tname">${esc(r.team)}</span><abbr class="tshort" title="${esc(r.team)}">${esc(r.short || r.team.slice(0, 3).toUpperCase())}</abbr></span></td>${cells}</tr>`;
@@ -3381,6 +3383,37 @@
     return `<div class="table-wrap"><table class="league teams${compact ? ' compact' : ''}">
       <thead><tr><th scope="col"><span class="visually-hidden">Position</span></th><th scope="col" class="name">Team</th>${head}</tr></thead>
       <tbody>${body}</tbody></table></div>`;
+  }
+
+  const signed = (n) => (n > 0 ? `+${n}` : String(n).replace('-', '\u2212'));
+
+  // Notes under a table for teams whose points were adjusted.
+  function adjustNotes(adjs) {
+    if (!adjs || !adjs.length) return '';
+    return `<ul class="adj-notes">${adjs.map((a) => `<li><span class="adj-mark" aria-hidden="true">*</span> <strong>${esc(a.team)}</strong>
+      ${esc(signed(a.points))} ${Math.abs(a.points) === 1 ? 'point' : 'points'}${a.reason ? `: ${esc(a.reason)}` : ''}</li>`).join('')}</ul>`;
+  }
+
+  // Admin: add or remove points adjustments for this competition and season.
+  function adjustAdmin(data) {
+    const seasons = state.settings.seasons || [];
+    const teams = data.table.map((r) => r.team);
+    const list = data.adjustments.length
+      ? `<ul class="adj-list">${data.adjustments.map((a) => `<li><span><strong>${esc(a.team)}</strong> ${esc(signed(a.points))}${a.reason ? ` (${esc(a.reason)})` : ''}</span>
+          <button class="btn small quiet" type="button" data-adj-remove="${a.id}">Remove</button></li>`).join('')}</ul>`
+      : '<p class="muted">No adjustments yet.</p>';
+    const form = seasons.length && !data.season
+      ? '<p class="muted">Choose a season above to add an adjustment.</p>'
+      : `<form class="inline-form" id="adj-form">
+          <label>Team<input type="text" name="team" required maxlength="60" list="adj-teams" autocomplete="off"></label>
+          <datalist id="adj-teams">${teams.map((t) => `<option value="${esc(t)}">`).join('')}</datalist>
+          <label class="adj-points">Points<input type="text" name="points" required inputmode="numeric" pattern="[+\-\u2212]?[0-9]{1,3}" placeholder="-4" maxlength="4"></label>
+          <label>Reason (shown under the table)<input type="text" name="reason" maxlength="100" placeholder="e.g. Started the season on -4"></label>
+          <div><button class="btn small" type="submit">Add adjustment</button></div>
+        </form>`;
+    return `<details class="adj-admin"><summary>Points adjustments${data.season ? ` for ${esc(data.season.name)}` : ''} (admin)</summary>
+      <p class="muted">Points added to or taken off a team in this table, e.g. -4 for a team that started the season on -4. Use a minus sign to take points away.</p>
+      ${list}${form}</details>`;
   }
 
   function placesLegend(places) {
@@ -3406,9 +3439,34 @@
     if (!data.table.length) {
       html += `<div class="notice"><p>No results yet${data.season ? ` in ${esc(data.season.name)}` : ''}. The table fills in as results are entered.</p></div>`;
     } else {
-      html += teamTableHtml(data.table, c.places) + placesLegend(c.places);
+      html += teamTableHtml(data.table, c.places) + adjustNotes(data.adjustments) + placesLegend(c.places);
     }
+    const admin = state.user && state.user.is_admin;
+    if (admin) html += adjustAdmin(data);
     setPage(html);
+    if (!admin) return;
+    const keepOpen = () => { try { sessionStorage.setItem('pl.adjOpen', '1'); } catch (e) { /* ignore */ } };
+    try { if (sessionStorage.getItem('pl.adjOpen')) { main.querySelector('.adj-admin').open = true; sessionStorage.removeItem('pl.adjOpen'); } } catch (e) { /* ignore */ }
+    const form = document.getElementById('adj-form');
+    if (form) form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const points = form.points.value.trim().replace('\u2212', '-');
+      try {
+        await submitting(form.querySelector('button'), () => api('admin.pointadj.add', { method: 'POST', body: {
+          competition_id: c.id, season_id: data.season ? data.season.id : null, team: form.team.value.trim(), points, reason: form.reason.value.trim() } }));
+        toast(`${signed(parseInt(points, 10))} points for ${form.team.value.trim()} added.`);
+        keepOpen();
+        viewStandings(arg).catch(errorPage);
+      } catch (err) { formError(form, err.message); }
+    });
+    main.querySelectorAll('[data-adj-remove]').forEach((b) => b.addEventListener('click', async () => {
+      try {
+        await submitting(b, () => api('admin.pointadj.remove', { method: 'POST', body: { id: Number(b.dataset.adjRemove) } }));
+        toast('Adjustment removed.');
+        keepOpen();
+        viewStandings(arg).catch(errorPage);
+      } catch (err) { toast(err.message, true); }
+    }));
   }
 
   // ------------------------------------------------------------------

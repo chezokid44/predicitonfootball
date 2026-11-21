@@ -318,3 +318,17 @@ CREATE TABLE IF NOT EXISTS `plmisses` (
           KEY `idx_ip_created` (`lid`, `ip`, `created`),
           KEY `idx_created` (`lid`, `created`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
+
+-- Points adjustments on the league tables (e.g. a team starting on -4).
+CREATE TABLE IF NOT EXISTS `plpointadj` (
+          `id` INT NOT NULL AUTO_INCREMENT,
+          `lid` INT NOT NULL DEFAULT 0,
+          `compid` INT NOT NULL,
+          `seasonid` INT NOT NULL DEFAULT 0,
+          `team` VARCHAR(60) NOT NULL,
+          `points` INT NOT NULL,
+          `reason` VARCHAR(100) NOT NULL DEFAULT '',
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`id`),
+          KEY `idx_comp_season` (`lid`, `compid`, `seasonid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;

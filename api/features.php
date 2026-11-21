@@ -691,6 +691,7 @@ function route_admin_export(): array {
   $tables['league_competitions'] = q('SELECT leagueid, compid FROM ' . xt('leaguecomps') . $inLid, [lid()])->fetchAll();
   $tables['league_members'] = q('SELECT leagueid, userid, role, joined FROM ' . xt('members') . $inLid, [lid()])->fetchAll();
   $tables['postponed'] = with_table('postponed', fn() => q('SELECT matchid, reason, created FROM ' . xt('postponed') . ' WHERE lid = ?', [lid()])->fetchAll());
+  $tables['point_adjustments'] = with_table('pointadj', fn() => q('SELECT compid, seasonid, team, points, reason, created FROM ' . xt('pointadj') . ' WHERE lid = ? ORDER BY id', [lid()])->fetchAll());
   $tables['seasons'] = with_table('seasons', fn() => q('SELECT seasonid, name, start_date, end_date, is_current FROM ' . xt('seasons') . ' WHERE lid = ?', [lid()])->fetchAll());
   $tables['teams'] = with_table('teams', fn() => q('SELECT teamid, name, short_name, badge FROM ' . xt('teams') . ' WHERE lid = ?', [lid()])->fetchAll());
   $tables['competition_teams'] = with_table('compteams', fn() => q('SELECT seasonid, compid, teamid FROM ' . xt('compteams') . ' WHERE seasonid IN (SELECT seasonid FROM ' . xt('seasons') . ' WHERE lid = ?)', [lid()])->fetchAll());
@@ -785,13 +786,16 @@ function route_admin_restore(): array {
     $teamRows[] = [(int)$r['teamid'], mb_substr((string)$r['name'], 0, 30), mb_substr((string)($r['short_name'] ?? ''), 0, 5), badge_url($r['badge'] ?? null)];
   }
   $ppRows = array_values(array_filter(array_map(fn($r) => [(int)($r['matchid'] ?? 0), mb_substr((string)($r['reason'] ?? ''), 0, 80), (string)($r['created'] ?? now_str())], $bt('postponed')), fn($r) => $r[0] > 0));
+  $adjRows = array_values(array_filter(array_map(fn($r) => [(int)($r['compid'] ?? 0), (int)($r['seasonid'] ?? 0), mb_substr(trim((string)($r['team'] ?? '')), 0, 60),
+    max(-999, min(999, (int)($r['points'] ?? 0))), mb_substr((string)($r['reason'] ?? ''), 0, 100), (string)($r['created'] ?? now_str())], $bt('point_adjustments')),
+    fn($r) => $r[0] > 0 && $r[2] !== '' && $r[3] !== 0));
   $sIds = array_column($seasonRows, 0);
   $ctRows = array_values(array_filter(array_map(fn($r) => [(int)($r['seasonid'] ?? 0), (int)($r['compid'] ?? 0), (int)($r['teamid'] ?? 0)], $bt('competition_teams')), fn($r) => in_array($r[0], $sIds, true)));
   $menuItems = array_values(array_filter(array_map(fn($r) => mb_substr((string)($r['item'] ?? ''), 0, 40), $bt('menu'))));
   // Create the tables before the transaction: MySQL commits implicitly on CREATE TABLE.
   ensure_league_tables();
   with_table('pages', fn() => q('SELECT 1 FROM ' . xt('pages') . ' WHERE 1 = 0'));
-  foreach (['seasons', 'teams', 'compteams', 'postponed'] as $tb) with_table($tb, fn() => q('SELECT 1 FROM ' . xt($tb) . ' WHERE 1 = 0'));
+  foreach (['seasons', 'teams', 'compteams', 'postponed', 'pointadj'] as $tb) with_table($tb, fn() => q('SELECT 1 FROM ' . xt($tb) . ' WHERE 1 = 0'));
   with_table('menu', fn() => q('SELECT 1 FROM ' . xt('menu') . ' WHERE 1 = 0'));
   with_table('prefs', fn() => q('SELECT COUNT(*) FROM ' . xt('prefs')));
   ensure_prefs_columns();
@@ -827,6 +831,8 @@ function route_admin_restore(): array {
     q('DELETE FROM ' . xt('seasons') . ' WHERE lid = ?', [lid()]);
     q('DELETE FROM ' . xt('postponed') . ' WHERE lid = ?', [lid()]);
     foreach ($ppRows as $r) q('INSERT INTO ' . xt('postponed') . ' (lid, matchid, reason, created) VALUES (?, ?, ?, ?)', [lid(), ...$r]);
+    q('DELETE FROM ' . xt('pointadj') . ' WHERE lid = ?', [lid()]);
+    foreach ($adjRows as $r) q('INSERT INTO ' . xt('pointadj') . ' (lid, compid, seasonid, team, points, reason, created) VALUES (?, ?, ?, ?, ?, ?, ?)', [lid(), ...$r]);
     q('DELETE FROM ' . xt('teams') . ' WHERE lid = ?', [lid()]);
     foreach ($seasonRows as $r) q('INSERT INTO ' . xt('seasons') . ' (seasonid, lid, name, start_date, end_date, is_current) VALUES (?, ?, ?, ?, ?, ?)', [$r[0], lid(), ...array_slice($r, 1)]);
     foreach ($teamRows as $r) q('INSERT INTO ' . xt('teams') . ' (teamid, lid, name, short_name, badge) VALUES (?, ?, ?, ?, ?)', [$r[0], lid(), ...array_slice($r, 1)]);
