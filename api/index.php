@@ -19,6 +19,7 @@ require __DIR__ . '/seasons.php';
 require __DIR__ . '/alerts.php';
 require __DIR__ . '/standings.php';
 require __DIR__ . '/discord.php';
+require __DIR__ . '/twostep.php';
 
 // Fatal PHP errors (which skip the catch below) are reported to Discord too.
 register_shutdown_function(function () {
@@ -40,7 +41,7 @@ try {
 
   $route = (string)($_GET['r'] ?? '');
   $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-  $routes = routes() + feature_routes() + botguard_routes() + league_routes() + page_routes() + season_routes() + alert_routes() + standings_routes() + discord_routes();
+  $routes = routes() + feature_routes() + botguard_routes() + league_routes() + page_routes() + season_routes() + alert_routes() + standings_routes() + discord_routes() + twostep_routes();
   if (!isset($routes[$route])) {
     fail(404, 'Unknown API route.');
   }
@@ -109,9 +110,12 @@ function route_session(): array {
   if ($user) {
     $user['prefs'] = user_prefs($user['id']);
     $user['follows'] = user_follows($user['id']);
+    $user['two_step'] = two_step_summary($user['id']);
+    $user['needs_two_step'] = admin_needs_two_step($user);
   }
   return [
     'user' => $user,
+    'pending' => $user ? null : pending_info(),
     'csrf' => $_SESSION['csrf'],
     'settings' => public_settings(),
     'first_user_becomes_admin' => cfg('first_user_becomes_admin') && admin_count() === 0,
@@ -143,7 +147,12 @@ function route_login(): array {
       [password_hash($password, PASSWORD_DEFAULT), lid(), (int)$row['userid']]);
   }
 
+  if (two_step_on((int)$row['userid'])) {
+    start_two_step((int)$row['userid'], 'password');
+    return route_session();
+  }
   session_regenerate_id(true);
+  unset($_SESSION['pending']);
   $_SESSION['uid'] = (int)$row['userid'];
   log_event('login', 'Logged in', ['id' => (int)$row['userid'], 'username' => clean_text($row['username'])]);
   return route_session();
@@ -151,7 +160,7 @@ function route_login(): array {
 
 function route_logout(): array {
   if (current_user()) log_event('logout', 'Logged out');
-  $_SESSION = [];
+  $_SESSION = [];   // also drops a half-finished 2-step log-in
   session_regenerate_id(true);
   $_SESSION['csrf'] = bin2hex(random_bytes(32));
   return route_session();
@@ -160,6 +169,9 @@ function route_logout(): array {
 function route_register(): array {
   $b = body();
   $viewer = current_user();
+  if ($viewer && admin_needs_two_step($viewer)) {
+    fail(403, 'Turn on 2-step log-in on Your account before using the admin pages.', 'needs_two_step');
+  }
   $creatingAsAdmin = $viewer && $viewer['is_admin'];
   if (!$creatingAsAdmin && setting_bool('LOCKEDGAME')) {
     fail(403, 'Registration is closed. Ask the league admin to add you.');
@@ -555,6 +567,7 @@ function route_admin_users(): array {
   foreach (q('SELECT userid, username, email, usertype, since, icon FROM ' . t('users') . ' WHERE lid = ? ORDER BY username', [lid()]) as $u) {
     $pu = public_user($u);
     $pu['points'] = $table[$pu['id']]['points'] ?? 0;
+    $pu['two_step'] = two_step_on($pu['id']);
     $users[] = $pu;
   }
   return ['users' => $users, 'max_admins' => (int)setting('MAX_ADMIN_USERS')];
@@ -597,6 +610,7 @@ function route_admin_delete_user(): array {
   q('DELETE FROM ' . t('users') . ' WHERE lid = ? AND userid = ?', [lid(), $id]);
   $pdo->commit();
   with_table('prefs', fn() => q('DELETE FROM ' . xt('prefs') . ' WHERE lid = ? AND userid = ?', [lid(), $id]));
+  foreach (['totp', 'webauthn', 'recovery'] as $tb) with_table($tb, fn() => q('DELETE FROM ' . xt($tb) . ' WHERE lid = ? AND userid = ?', [lid(), $id]));
   remove_player_from_leagues($id);
   save_standings(compute_standings());
   log_event('player_delete', 'Deleted player ' . clean_text($target['username']) . ' and their predictions');
@@ -619,9 +633,12 @@ function route_admin_settings(): array {
 }
 
 function route_admin_save_settings(): array {
-  require_admin();
+  $me = require_admin();
   $values = body()['values'] ?? null;
   if (!is_array($values)) fail(422, 'No settings were sent.');
+  if (strtoupper(trim((string)($values['REQUIRE_2FA_ADMINS'] ?? ''))) === 'TRUE' && !setting_bool('REQUIRE_2FA_ADMINS') && !two_step_on($me['id'])) {
+    fail(422, 'Turn on 2-step log-in for your own account first (Your account > Security), so this doesn\'t lock you out.');
+  }
   $defs = default_settings();
   $current = settings();
   $changed = [];

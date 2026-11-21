@@ -60,6 +60,7 @@
 
   function applySession(s) {
     state.user = s.user;
+    state.pending = s.pending || null;
     state.csrf = s.csrf;
     state.settings = s.settings;
     state.firstAdmin = s.first_user_becomes_admin;
@@ -320,6 +321,7 @@
     main.innerHTML = html;
   }
   function errorPage(err) {
+    if (err.code === 'needs_two_step') { needTwoStepPage(); return; }
     if (err.code === 'not_installed') {
       setPage(`<h1>Set up your league</h1><p class="lede">This site hasn't been set up yet.</p>
         <p><a class="btn" href="install/">Run the installer</a></p>`);
@@ -693,6 +695,8 @@
         ${honeypotField()}
         <div><button class="btn" type="submit">Log in</button></div>
       </form>
+      ${webauthnOk() ? `<div class="passkey-login"><span class="muted">or</span>
+        <button class="btn quiet" type="button" id="passkey-login">Log in with a passkey</button></div>` : ''}
       <p class="form-foot">${state.settings.registration_open ? 'New here? <a href="#/register">Join the league</a>.' : 'Registration is closed. Ask the league admin to add you.'}
       ${state.settings.email ? '<a href="#/forgot">Forgotten your password?</a>' : 'Forgotten your password? Ask the league admin for a reset link.'}</p>`);
     const form = document.getElementById('login-form');
@@ -704,6 +708,7 @@
         const s = await submitting(form.querySelector('button'), () => check.send('login', form,
           { username: form.username.value, password: form.password.value }));
         applySession(s);
+        if (s.pending) { location.hash = '#/2fa'; return; }
         if (!(await cookiesWork())) return;
         toast(`Logged in as ${s.user.username}.`);
         location.hash = takeJoinRedirect() || '#/predictions';
@@ -713,6 +718,278 @@
         form.password.select();
       }
     });
+    const pk = document.getElementById('passkey-login');
+    if (pk) pk.addEventListener('click', async () => {
+      try {
+        const s = await submitting(pk, async () => {
+          const { publicKey } = await api('passkey.options', { method: 'POST' });
+          const cred = await navigator.credentials.get({ publicKey: requestOptions(publicKey) });
+          return api('passkey.login', { method: 'POST', body: { assertion: assertionJSON(cred) } });
+        });
+        applySession(s);
+        if (!(await cookiesWork())) return;
+        toast(`Logged in as ${s.user.username}.`);
+        location.hash = takeJoinRedirect() || '#/predictions';
+      } catch (err) {
+        formError(form, webauthnMessage(err));
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // 2-step log-in: passkeys, security keys and authenticator apps
+  // ------------------------------------------------------------------
+
+  const webauthnOk = () => !!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext);
+  const b64uEnc = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const b64uDec = (str) => Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4)), (c) => c.charCodeAt(0)).buffer;
+
+  function creationOptions(o) {
+    return { ...o, challenge: b64uDec(o.challenge), user: { ...o.user, id: b64uDec(o.user.id) },
+      excludeCredentials: (o.excludeCredentials || []).map((c) => ({ ...c, id: b64uDec(c.id) })),
+      extensions: { credProps: true } };
+  }
+  function requestOptions(o) {
+    const r = { ...o, challenge: b64uDec(o.challenge) };
+    if (o.allowCredentials) r.allowCredentials = o.allowCredentials.map((c) => ({ ...c, id: b64uDec(c.id) }));
+    return r;
+  }
+  function credentialJSON(cred) {
+    return { id: cred.id, rawId: b64uEnc(cred.rawId), type: cred.type,
+      transports: cred.response.getTransports ? cred.response.getTransports() : [],
+      clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
+      response: { clientDataJSON: b64uEnc(cred.response.clientDataJSON), attestationObject: b64uEnc(cred.response.attestationObject) } };
+  }
+  function assertionJSON(cred) {
+    return { id: cred.id, rawId: b64uEnc(cred.rawId), type: cred.type,
+      response: { clientDataJSON: b64uEnc(cred.response.clientDataJSON), authenticatorData: b64uEnc(cred.response.authenticatorData),
+        signature: b64uEnc(cred.response.signature), userHandle: cred.response.userHandle ? b64uEnc(cred.response.userHandle) : null } };
+  }
+  // Browser errors from the passkey prompt, in plain words.
+  function webauthnMessage(err) {
+    if (err instanceof ApiError) return err.message;
+    if (err && err.name === 'NotAllowedError') return 'The passkey request was cancelled or timed out. Try again.';
+    if (err && err.name === 'InvalidStateError') return 'That key is already registered on your account.';
+    if (err && err.name === 'SecurityError') return 'Passkeys only work on the site\'s own address, over https.';
+    if (err && err.name === 'NotSupportedError') return 'This browser or key doesn\'t support that. Try another key, or the authenticator app.';
+    return (err && err.message) || 'Something went wrong with the passkey. Try again.';
+  }
+
+  function needTwoStepPage() {
+    setPage(`<h1>Turn on 2-step log-in first</h1>
+      <div class="notice"><p>This league asks admins to protect their account with 2-step log-in before using the admin pages.</p>
+      <p>Add an authenticator app, a passkey or a security key on Your account. It takes a minute.</p></div>
+      <p><a class="btn" href="#/account/security">Set it up</a></p>`);
+  }
+
+  function viewTwoStep() {
+    renderNav('login');
+    if (state.user) { location.hash = '#/predictions'; return; }
+    const p = state.pending;
+    if (!p) { location.hash = '#/login'; return; }
+    const m = p.methods;
+    const hasKey = m.includes('key') && webauthnOk();
+    setPage(`<h1>One more step</h1>
+      <p class="lede">Your password was right. Now check it's really you, <strong>${esc(p.username)}</strong>.</p>
+      ${hasKey ? `<p><button class="btn" type="button" id="use-key">Use my passkey or security key</button></p>` : ''}
+      ${m.includes('totp') ? `<form class="stack" id="code-form">
+        <label>Code from your authenticator app<span class="hint">The 6-digit code for this league in Google Authenticator, Microsoft Authenticator or similar.</span>
+          <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" required class="code-input"></label>
+        <div><button class="btn${hasKey ? ' quiet' : ''}" type="submit">Check code</button></div></form>` : ''}
+      ${m.includes('recovery') ? `<details class="recovery-entry"${!m.includes('totp') && !hasKey ? ' open' : ''}><summary>Lost your phone or key? Use a recovery code</summary>
+        <form class="stack" id="recovery-form">
+          <label>Recovery code<span class="hint">One of the 10 codes you saved when you turned on 2-step log-in. Each works once.</span>
+            <input type="text" name="code" autocomplete="off" spellcheck="false" maxlength="12" required placeholder="xxxxx-xxxxx"></label>
+          <div><button class="btn quiet" type="submit">Use recovery code</button></div></form></details>` : ''}
+      ${m.includes('key') && !webauthnOk() ? '<p class="muted">This browser can\'t use passkeys or security keys here.</p>' : ''}
+      <p class="form-foot"><a href="#/login" id="start-again">Start again</a>. No way in? Ask the league admin to switch off 2-step log-in for you.</p>`);
+    const done = async (s) => {
+      applySession(s);
+      if (!(await cookiesWork())) return;
+      toast(`Logged in as ${s.user.username}.`);
+      if (s.recovery_left !== undefined) toast(`Logged in. You have ${plural(s.recovery_left, 'recovery code')} left; make new ones on Your account.`);
+      location.hash = takeJoinRedirect() || '#/predictions';
+    };
+    const failed = (form, err) => {
+      if (err.code === 'two_step_restart') { toast(err.message, true); state.pending = null; location.hash = '#/login'; return; }
+      if (form) formError(form, err.message); else toast(err.message, true);
+    };
+    const codeForm = document.getElementById('code-form');
+    if (codeForm) {
+      codeForm.code.focus();
+      codeForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try { await done(await submitting(codeForm.querySelector('button'), () => api('login.2fa', { method: 'POST', body: { code: codeForm.code.value } }))); }
+        catch (err) { failed(codeForm, err); codeForm.code.select(); }
+      });
+    }
+    const recForm = document.getElementById('recovery-form');
+    if (recForm) recForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try { await done(await submitting(recForm.querySelector('button'), () => api('login.2fa', { method: 'POST', body: { code: recForm.code.value } }))); }
+      catch (err) { failed(recForm, err); }
+    });
+    const keyBtn = document.getElementById('use-key');
+    if (keyBtn) keyBtn.addEventListener('click', async () => {
+      try {
+        await done(await submitting(keyBtn, async () => {
+          const { publicKey } = await api('login.2fa.options', { method: 'POST' });
+          const cred = await navigator.credentials.get({ publicKey: requestOptions(publicKey) });
+          return api('login.2fa', { method: 'POST', body: { assertion: assertionJSON(cred) } });
+        }));
+      } catch (err) {
+        if (err.code === 'two_step_restart') return failed(null, err);
+        toast(webauthnMessage(err), true);
+      }
+    });
+    document.getElementById('start-again').addEventListener('click', async (e) => {
+      e.preventDefault();
+      try { applySession(await api('logout', { method: 'POST' })); } catch (err) { /* ignore */ }
+      location.hash = '#/login';
+    });
+  }
+
+  // Your account > Security
+  async function securitySection(box) {
+    const d = await api('security');
+    const k = d.key_list;
+    const fmt = (t) => (t ? fmtShort(t) : 'never');
+    box.innerHTML = `<h2 id="security-heading">Security: 2-step log-in</h2>
+      ${d.required ? '<div class="notice"><p>Admins of this league must turn on 2-step log-in before using the admin pages.</p></div>' : ''}
+      <p class="muted">${d.on
+        ? '2-step log-in is <strong>on</strong>. After your password you\'ll be asked for a code or your key.'
+        : 'Protect your account: after your password, you\'ll also need a code from your phone or a tap on your key, so a stolen password isn\'t enough.'}</p>
+      <h3>Authenticator app</h3>
+      <p class="muted">Google Authenticator, Microsoft Authenticator, Authy, 1Password and similar apps.</p>
+      ${d.totp ? `<p><span class="tag ok-tag">On</span> <button class="btn small quiet" type="button" id="totp-off">Turn off</button></p>`
+        : '<p><button class="btn small" type="button" id="totp-on">Set up an authenticator app</button></p>'}
+      <div id="totp-setup"></div>
+      <h3>Passkeys and security keys</h3>
+      <p class="muted">A <strong>passkey</strong> (your phone, Windows Hello, Touch ID, or a YubiKey with a PIN) logs you in without a password. A <strong>security key</strong> (e.g. a YubiKey) is tapped after your password.</p>
+      ${k.length ? `<ul class="key-list">${k.map((x) => `<li data-key="${x.id}"><span class="grow"><strong>${esc(x.name)}</strong> <span class="tag">${x.passkey ? 'Passkey' : 'Security key'}</span><br>
+          <span class="muted">Added ${esc(fmtShort(x.created))}, last used ${esc(fmt(x.last_used))}</span></span>
+          <span class="actions"><button class="btn small quiet" type="button" data-rename="${x.id}">Rename</button>
+          <button class="btn small danger" type="button" data-remove-key="${x.id}">Remove</button></span></li>`).join('')}</ul>` : ''}
+      ${webauthnOk() ? `<p class="actions"><button class="btn small" type="button" id="add-passkey">Add a passkey</button>
+          <button class="btn small quiet" type="button" id="add-key">Add a security key</button></p>`
+        : '<p class="muted">This browser can\'t add passkeys here (they need the site\'s https address).</p>'}
+      ${d.on ? `<h3>Recovery codes</h3>
+      <p class="muted">${esc(plural(d.recovery_left, 'unused code'))} left. Use one if you lose your phone or key.
+        <button class="btn small quiet" type="button" id="new-codes">Make new codes</button></p>` : ''}
+      <div id="codes-box"></div>
+      <form class="stack hidden-form" id="pw-form" hidden>
+        <label class="key-name" hidden>Name for this key<span class="hint">So you can tell your keys apart, e.g. "My phone" or "Blue YubiKey".</span>
+          <input type="text" name="keyname" maxlength="60" autocomplete="off"></label>
+        <label>Your current password<span class="hint" id="pw-why"></span>
+          <input type="password" name="password" autocomplete="current-password" required></label>
+        <div class="actions"><button class="btn small" type="submit">Continue</button> <button class="btn small quiet" type="button" id="pw-cancel">Cancel</button></div>
+      </form>`;
+
+    const pwForm = box.querySelector('#pw-form');
+    // Ask for the current password, then run the action with it.
+    const withPassword = (why, action, anchor, askName = false) => {
+      pwForm.hidden = false;
+      pwForm.querySelector('.error')?.remove();
+      pwForm.querySelector('#pw-why').textContent = why;
+      pwForm.querySelector('.key-name').hidden = !askName;
+      pwForm.keyname.value = '';
+      (anchor ? (anchor.closest('p, li') || anchor) : box.querySelector('#codes-box')).insertAdjacentElement('afterend', pwForm);
+      pwForm.password.value = '';
+      (askName ? pwForm.keyname : pwForm.password).focus();
+      pwForm.onsubmit = async (e) => {
+        e.preventDefault();
+        try {
+          await submitting(pwForm.querySelector('button'), () => action(pwForm.password.value, pwForm.keyname.value.trim()));
+          pwForm.hidden = true;
+        } catch (err) {
+          formError(pwForm, webauthnMessage(err));
+        }
+      };
+      box.querySelector('#pw-cancel').onclick = () => { pwForm.hidden = true; };
+    };
+    const refresh = async () => { await refreshSession(); await securitySection(box); };
+    const showCodes = (codes) => {
+      if (!codes) return;
+      const cb = box.querySelector('#codes-box');
+      cb.innerHTML = `<div class="codes-panel"><h3>Save your recovery codes</h3>
+        <p>If you lose your phone or key, each of these lets you log in once. They won't be shown again: copy them or print them now, and keep them somewhere safe.</p>
+        <pre class="codes">${codes.map(esc).join('\n')}</pre>
+        <p class="actions"><button class="btn small" type="button" id="copy-codes">Copy codes</button>
+          <button class="btn small quiet" type="button" id="dl-codes">Download as a text file</button></p></div>`;
+      cb.querySelector('#copy-codes').addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(codes.join('\n')); toast('Codes copied.'); } catch (e) { toast('Select the codes and copy them.', true); }
+      });
+      cb.querySelector('#dl-codes').addEventListener('click', () => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([`${state.settings.title} recovery codes for ${state.user.username}\n\n${codes.join('\n')}\n`], { type: 'text/plain' }));
+        a.download = 'recovery-codes.txt';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      });
+      cb.scrollIntoView({ block: 'center' });
+    };
+
+    const on = box.querySelector('#totp-on');
+    if (on) on.addEventListener('click', () => withPassword('Needed to set up an authenticator app.', async (password) => {
+      const r = await api('security.totp.start', { method: 'POST', body: { password } });
+      const setup = box.querySelector('#totp-setup');
+      let qr = '';
+      try { qr = window.PLQR ? window.PLQR.svg(r.uri) : ''; } catch (e) { qr = ''; }
+      setup.innerHTML = `<div class="totp-panel">
+        <ol><li>Open your authenticator app and add an account (often a + button).</li>
+          <li>Scan this QR code${qr ? '' : ' (or enter the key below)'}:</li></ol>
+        ${qr ? `<div class="qr">${qr}</div>` : ''}
+        <p class="muted">Can't scan it? Choose "enter a setup key" and type <code class="secret">${esc(r.secret.replace(/(.{4})/g, '$1 ').trim())}</code> (time-based).
+          On this phone? <a href="${esc(r.uri)}">Open it in your app</a>.</p>
+        <form class="inline-form" id="totp-confirm">
+          <label>3. Enter the 6-digit code it shows<input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required class="code-input"></label>
+          <div><button class="btn small" type="submit">Turn on</button></div></form></div>`;
+      const cf = setup.querySelector('#totp-confirm');
+      cf.code.focus();
+      cf.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          const res = await submitting(cf.querySelector('button'), () => api('security.totp.confirm', { method: 'POST', body: { code: cf.code.value } }));
+          toast('2-step log-in is on.');
+          await refresh();
+          showCodes(res.codes);
+        } catch (err) { formError(cf, err.message); }
+      });
+    }, on));
+    const off = box.querySelector('#totp-off');
+    if (off) off.addEventListener('click', () => withPassword('Needed to turn off the authenticator app.', async (password) => {
+      await api('security.totp.off', { method: 'POST', body: { password } });
+      toast('Authenticator app turned off.');
+      await refresh();
+    }, off));
+    const addKey = (passkey, btn) => withPassword(`Needed to add a ${passkey ? 'passkey' : 'security key'}. Your browser will then ask you to ${passkey ? 'create the passkey' : 'insert and tap the key'}.`, async (password, name) => {
+      const { publicKey } = await api('security.key.options', { method: 'POST', body: { password, passkey } });
+      const cred = await navigator.credentials.create({ publicKey: creationOptions(publicKey) });
+      const res = await api('security.key.add', { method: 'POST', body: { credential: credentialJSON(cred), name } });
+      toast(passkey ? 'Passkey added.' : 'Security key added.');
+      await refresh();
+      showCodes(res.codes);
+    }, btn, true);
+    box.querySelector('#add-passkey')?.addEventListener('click', (e) => addKey(true, e.currentTarget));
+    box.querySelector('#add-key')?.addEventListener('click', (e) => addKey(false, e.currentTarget));
+    box.querySelectorAll('[data-remove-key]').forEach((b) => b.addEventListener('click', () => withPassword('Needed to remove a key.', async (password) => {
+      await api('security.key.remove', { method: 'POST', body: { id: Number(b.dataset.removeKey), password } });
+      toast('Key removed.');
+      await refresh();
+    }, b.closest('li'))));
+    box.querySelectorAll('[data-rename]').forEach((b) => b.addEventListener('click', async () => {
+      const cur = k.find((x) => x.id === Number(b.dataset.rename));
+      const name = (prompt('New name for this key:', cur ? cur.name : '') || '').trim();
+      if (!name) return;
+      try { await api('security.key.rename', { method: 'POST', body: { id: cur.id, name } }); toast('Key renamed.'); await securitySection(box); }
+      catch (err) { toast(err.message, true); }
+    }));
+    box.querySelector('#new-codes')?.addEventListener('click', (e) => withPassword('Needed to make new recovery codes. Your old codes will stop working.', async (password) => {
+      const res = await api('security.codes', { method: 'POST', body: { password } });
+      await refresh();
+      showCodes(res.codes);
+      toast('New recovery codes made. The old ones no longer work.');
+    }, e.currentTarget));
   }
 
   function viewRegister() {
@@ -787,8 +1064,13 @@
           <span>Let the league admin email me news and reminders</span></label>
         <p class="muted tight">Emails go to ${esc(state.user.email || 'your email address')}. Password reset emails are always sent when you ask for one.</p>
       </form>` : ''}
+      <section id="security" class="security-box"><h2>Security: 2-step log-in</h2><p class="muted">Loading...</p></section>
       <h2>Log out</h2>
       <p><button class="btn quiet" type="button" id="logout">Log out</button></p>`);
+    const secBox = document.getElementById('security');
+    securitySection(secBox).then(() => {
+      if (location.hash === '#/account/security') secBox.scrollIntoView();
+    }).catch((err) => { secBox.innerHTML = `<h2>Security</h2><p class="error">${esc(err.message)}</p>`; });
     const form = document.getElementById('account-form');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -873,6 +1155,7 @@
       setPage(`<h1>Admins only</h1><p class="lede">Your account isn't a league admin.</p>`);
       return;
     }
+    if (state.user.needs_two_step) { needTwoStepPage(); return; }
     if (tab === 'results') return adminResults();
     if (tab === 'players') return adminPlayers();
     if (tab === 'settings') return adminSettings();
@@ -1356,10 +1639,11 @@
     const data = await api('admin.users');
     const render = (d) => {
       const items = d.users.map((u) => `<li class="admin-item" data-player="${u.id}">
-        ${avatar(u)}<span class="grow"><strong>${esc(u.username)}</strong> ${u.is_admin ? '<span class="tag">Admin</span>' : ''}<br>
+        ${avatar(u)}<span class="grow"><strong>${esc(u.username)}</strong> ${u.is_admin ? '<span class="tag">Admin</span>' : ''} ${u.two_step ? '<span class="tag ok-tag" title="2-step log-in is on">2-step</span>' : ''}<br>
           <span class="muted">${esc(u.email || 'No email')}, ${esc(plural(u.points, 'point'))}${u.since ? `, joined ${esc(u.since)}` : ''}</span></span>
         <span class="actions">${u.id === state.user.id ? '<span class="muted">This is you</span>' : `
           <button class="btn small quiet" type="button" data-reset="${u.id}">Reset password</button>
+          ${u.two_step ? `<button class="btn small quiet" type="button" data-off2fa="${u.id}">Switch off 2-step</button>` : ''}
           <button class="btn small quiet" type="button" data-admin="${u.id}" data-make="${u.is_admin ? 0 : 1}">${u.is_admin ? 'Remove admin' : 'Make admin'}</button>
           <button class="btn small danger" type="button" data-remove="${u.id}">Delete player</button>`}
         </span></li>`).join('');
@@ -1406,6 +1690,15 @@
             } catch (err) { toast(err.message, true); }
           });
         } catch (err) { toast(err.message, true); }
+      }));
+      main.querySelectorAll('[data-off2fa]').forEach((btn) => btn.addEventListener('click', () => {
+        armed(btn, 'Remove their app, keys and codes?', async () => {
+          try {
+            await api('admin.user.reset2fa', { method: 'POST', body: { id: Number(btn.dataset.off2fa) } });
+            toast('2-step log-in switched off. They can log in with just their password and set it up again.');
+            render(await api('admin.users'));
+          } catch (err) { toast(err.message, true); }
+        });
       }));
       main.querySelectorAll('[data-remove]').forEach((btn) => btn.addEventListener('click', () => {
         armed(btn, 'Delete player and predictions?', async () => {
@@ -1743,6 +2036,7 @@
       try {
         const s = await submitting(form.querySelector('button'), () => api('reset.confirm', { method: 'POST', body: { token, password: form.password.value } }));
         applySession(s);
+        if (s.pending) { toast('Password changed. Now finish logging in.'); location.hash = '#/2fa'; return; }
         toast('Password changed. You\'re logged in.');
         location.hash = '#/predictions';
       } catch (err) { formError(form, err.message); }
@@ -1920,7 +2214,7 @@
     fixtures_import: 'Fixtures imported', result: 'Result', settings: 'Settings', player_add: 'Player added',
     player_admin: 'Admin rights', player_delete: 'Player deleted', recalculate: 'Recalculated', backup: 'Backup',
     restore: 'Restore', mail_test: 'Test email', mail_failed: 'Email failed',
-    bot_trap: 'Bot trap', bot_honeypot: 'Bot caught (hidden field)', bot_check_failed: 'Bot check failed', unblock: 'Block lifted', not_found: 'Missing pages', traplist: 'Trap URL list', pointadj: 'Points adjustment',
+    bot_trap: 'Bot trap', bot_honeypot: 'Bot caught (hidden field)', bot_check_failed: 'Bot check failed', unblock: 'Block lifted', not_found: 'Missing pages', traplist: 'Trap URL list', pointadj: 'Points adjustment', security: '2-step log-in', security_failed: 'Wrong password (2-step settings)',
     auto_predict: 'Automatic predictions', competition: 'Competition', prefs: 'Preferences',
   };
 
@@ -3494,6 +3788,7 @@
         case 'match': await viewMatch(arg); break;
         case 'player': await viewPlayer(arg); break;
         case 'login': viewLogin(); break;
+        case '2fa': viewTwoStep(); break;
         case 'register': viewRegister(); break;
         case 'account': viewAccount(); break;
         case 'admin': await viewAdmin(arg || 'fixtures'); break;

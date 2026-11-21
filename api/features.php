@@ -582,9 +582,14 @@ function route_reset_confirm(): array {
 
   q('UPDATE ' . t('users') . ' SET password = ? WHERE lid = ? AND userid = ?', [make_password_hash($password), lid(), $uid]);
   with_table('resets', fn() => q('UPDATE ' . xt('resets') . ' SET used = 1 WHERE lid = ? AND userid = ?', [lid(), $uid]));
+  log_event('password_reset', 'Set a new password with a reset link', ['id' => $uid, 'username' => clean_text($user['username'])]);
+  if (two_step_on($uid)) {
+    // The reset link proves the email address, not the second step.
+    start_two_step($uid, 'reset');
+    return route_session();
+  }
   session_regenerate_id(true);
   $_SESSION['uid'] = $uid;
-  log_event('password_reset', 'Set a new password with a reset link', ['id' => $uid, 'username' => clean_text($user['username'])]);
   return route_session();
 }
 

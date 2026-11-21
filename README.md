@@ -155,6 +155,10 @@ api/config.sample.php    example settings (the installer writes api/config.php)
 install/index.php        the installer (locks itself once set up)
 install/installer.php    installer logic (refuses direct requests)
 hp/, wp-login.php, xmlrpc.php   bot traps (see Security)
+api/twostep.php          2-step log-in: authenticator apps, passkeys,
+                         security keys, recovery codes
+assets/qrcode.js         QR codes for setting up authenticator apps (MIT,
+                         Kazuhiko Arase)
 notfound.php             answers addresses that don't exist (404) and counts
                          them towards blocking (see Security)
 .htaccess                Apache: sends missing pages to notfound.php
@@ -197,6 +201,41 @@ Old MD5 passwords keep working and are upgraded to bcrypt the next time each
 player logs in.
 
 ## Security
+
+**2-step log-in and passkeys** (Your account > Security). Each player can
+protect their account with any mix of:
+
+- *Authenticator app* (Google Authenticator, Microsoft Authenticator, Authy,
+  1Password...): scan the QR code, enter the 6-digit code to turn it on.
+  After the password, the app's code is asked for. Each code works once.
+- *Passkey* (phone, Windows Hello, Touch ID, or a YubiKey with a PIN): logs
+  in with **Log in with a passkey**, no password needed (the device checks a
+  PIN, fingerprint or face). It also works as the second step after the
+  password.
+- *Security key* (e.g. a YubiKey you tap): the second step after the
+  password.
+- *Recovery codes*: 10 single-use codes, shown once when 2-step is first
+  turned on (copy or download them). Players can make new ones any time.
+
+Every change needs the current password. Password reset links don't skip the
+second step. Five wrong codes means starting again with the password, and
+wrong codes count towards the 15-minute log-in pause like wrong passwords.
+
+Passkeys and security keys need the site on https at the address in
+`site_url` (they're tied to that host name, e.g. `predictionfootball.uk`; if
+you move the site to a new domain, players add their keys again). Authenticator
+apps work anywhere, as long as the server clock is right.
+
+Admins: Admin > Players shows who has 2-step on, and **Switch off 2-step**
+removes a player's app, keys and codes if they've lost them (they then log in
+with their password and set it up again). Settings > Rules >
+`REQUIRE_2FA_ADMINS` makes admins turn on 2-step before using the admin pages
+(turn it on for your own account first). If the only admin loses everything,
+remove it in the database: `DELETE FROM pltotp WHERE userid = N; DELETE FROM
+plwebauthn WHERE userid = N; DELETE FROM plrecovery WHERE userid = N;`.
+2-step settings aren't in backups, so after restoring onto a new server
+players log in with their password and set it up again.
+
 
 **Private PHP files can't be opened directly.** `api/lib.php`,
 `api/config.php` and `install/installer.php` stop with an empty 403 unless
@@ -397,8 +436,9 @@ UPDATE pluserdata SET usertype = 4 WHERE username = 'their-username';
   player plays), `plpages`, `plmenu`, `plseasons`, `plteams` and
   `plcompteams` (the teams in each competition each season), `plpostponed`,
   `plstore` (the Discord webhook and alert bookkeeping), `plmisses`
-  (missing pages asked for, kept 7 days) and `plpointadj` (league table
-  points adjustments). They're created automatically the first time
+  (missing pages asked for, kept 7 days), `plpointadj` (league table
+  points adjustments), and `pltotp`, `plrecovery` and `plwebauthn`
+  (2-step log-in). They're created automatically the first time
   they're needed, by the installer, or by `sql/upgrade.sql`. The old tables
   aren't altered apart from the wider password column.
 - **Automatic predictions** are filled in the next time anyone uses the site

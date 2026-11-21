@@ -293,6 +293,9 @@ function require_user(): array {
 function require_admin(): array {
   $u = require_user();
   if (!$u['is_admin']) fail(403, 'Only admins can do that.');
+  if (function_exists('admin_needs_two_step') && admin_needs_two_step($u)) {
+    fail(403, 'Turn on 2-step log-in on Your account before using the admin pages.', 'needs_two_step');
+  }
   return $u;
 }
 
@@ -374,6 +377,7 @@ function default_settings(): array {
     'LOG_DAYS'          => [3, '365', 'Keep the activity log for this many days.', 'number'],
     'PASSWORDENCRYPT'   => [3, 'TRUE', 'Store passwords as MD5 when the password column has not been upgraded. Passwords are stored with bcrypt once it has.', 'bool'],
     'LOCKEDGAME'        => [3, 'FALSE', 'Close registration so only admins can add players.', 'bool'],
+    'REQUIRE_2FA_ADMINS' => [3, 'FALSE', 'Admins must turn on 2-step log-in (an authenticator app, passkey or security key) on Your account before they can use the admin pages.', 'bool'],
     'PRED_CUTOFF_MINS'  => [3, '30', 'Predictions close this many minutes before kick-off (0 means at kick-off). Everyone\'s predictions are shown once they close.', 'number'],
     'BOT_CHECK'         => [3, 'TRUE', 'Check log-in, sign-up and password reset forms for bots (a hidden honeypot field and a puzzle the browser solves in the background).', 'bool'],
     'BOT_POW_BITS'      => [3, '16', 'Size of the bot-check puzzle, from 8 to 22. Each extra 1 doubles the work: 16 takes a computer about a quarter of a second.', 'number'],
@@ -765,7 +769,8 @@ function extra_tables(): array {
           'leagues' => 'plleagues', 'leaguecomps' => 'plleaguecomps', 'members' => 'plleaguemembers',
           'follows' => 'plfollows', 'pages' => 'plpages', 'menu' => 'plmenu',
           'seasons' => 'plseasons', 'teams' => 'plteams', 'compteams' => 'plcompteams',
-          'postponed' => 'plpostponed', 'store' => 'plstore', 'misses' => 'plmisses', 'pointadj' => 'plpointadj'];
+          'postponed' => 'plpostponed', 'store' => 'plstore', 'misses' => 'plmisses', 'pointadj' => 'plpointadj',
+          'totp' => 'pltotp', 'recovery' => 'plrecovery', 'webauthn' => 'plwebauthn'];
 }
 
 function extra_table_sql(string $name, string $driver): string {
@@ -826,6 +831,53 @@ function extra_table_sql(string $name, string $driver): string {
           `compid` INT NOT NULL,
           PRIMARY KEY (`lid`, `matchid`),
           KEY `idx_comp` (`lid`, `compid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
+  }
+  if ($name === 'totp') {
+    return $driver === 'sqlite'
+      ? "CREATE TABLE IF NOT EXISTS {$tables['totp']} (lid INT NOT NULL DEFAULT 0, userid INT NOT NULL, secret VARCHAR(64) NOT NULL, last_step BIGINT NOT NULL DEFAULT 0, created DATETIME NOT NULL, PRIMARY KEY (lid, userid))"
+      : "CREATE TABLE IF NOT EXISTS `{$tables['totp']}` (
+          `lid` INT NOT NULL DEFAULT 0,
+          `userid` INT NOT NULL,
+          `secret` VARCHAR(64) NOT NULL,
+          `last_step` BIGINT NOT NULL DEFAULT 0,
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`lid`, `userid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
+  }
+  if ($name === 'recovery') {
+    return $driver === 'sqlite'
+      ? "CREATE TABLE IF NOT EXISTS {$tables['recovery']} (id INTEGER PRIMARY KEY AUTOINCREMENT, lid INT NOT NULL DEFAULT 0, userid INT NOT NULL, code_hash CHAR(64) NOT NULL, used DATETIME NULL, created DATETIME NOT NULL)"
+      : "CREATE TABLE IF NOT EXISTS `{$tables['recovery']}` (
+          `id` INT NOT NULL AUTO_INCREMENT,
+          `lid` INT NOT NULL DEFAULT 0,
+          `userid` INT NOT NULL,
+          `code_hash` CHAR(64) NOT NULL,
+          `used` DATETIME NULL,
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`id`),
+          KEY `idx_user` (`lid`, `userid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
+  }
+  if ($name === 'webauthn') {
+    return $driver === 'sqlite'
+      ? "CREATE TABLE IF NOT EXISTS {$tables['webauthn']} (id INTEGER PRIMARY KEY AUTOINCREMENT, lid INT NOT NULL DEFAULT 0, userid INT NOT NULL, credid VARCHAR(255) NOT NULL, pubkey TEXT NOT NULL, alg INT NOT NULL, signcount BIGINT NOT NULL DEFAULT 0, name VARCHAR(60) NOT NULL, discoverable INT NOT NULL DEFAULT 0, transports VARCHAR(120) NOT NULL DEFAULT '', created DATETIME NOT NULL, lastused DATETIME NULL)"
+      : "CREATE TABLE IF NOT EXISTS `{$tables['webauthn']}` (
+          `id` INT NOT NULL AUTO_INCREMENT,
+          `lid` INT NOT NULL DEFAULT 0,
+          `userid` INT NOT NULL,
+          `credid` VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          `pubkey` TEXT NOT NULL,
+          `alg` INT NOT NULL,
+          `signcount` BIGINT NOT NULL DEFAULT 0,
+          `name` VARCHAR(60) NOT NULL,
+          `discoverable` TINYINT NOT NULL DEFAULT 0,
+          `transports` VARCHAR(120) NOT NULL DEFAULT '',
+          `created` DATETIME NOT NULL,
+          `lastused` DATETIME NULL,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `idx_cred` (`lid`, `credid`),
+          KEY `idx_user` (`lid`, `userid`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
   }
   if ($name === 'pointadj') {

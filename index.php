@@ -58,6 +58,7 @@ header('Referrer-Policy: same-origin');
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+  <script src="<?= $asset('assets/qrcode.js') ?>" defer></script>
   <script src="<?= $asset('assets/app.js') ?>" defer></script>
 </body>
 </html>

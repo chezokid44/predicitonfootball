@@ -332,3 +332,40 @@ CREATE TABLE IF NOT EXISTS `plpointadj` (
           PRIMARY KEY (`id`),
           KEY `idx_comp_season` (`lid`, `compid`, `seasonid`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
+
+-- 2-step log-in: authenticator apps, recovery codes, passkeys and security keys.
+CREATE TABLE IF NOT EXISTS `pltotp` (
+          `lid` INT NOT NULL DEFAULT 0,
+          `userid` INT NOT NULL,
+          `secret` VARCHAR(64) NOT NULL,
+          `last_step` BIGINT NOT NULL DEFAULT 0,
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`lid`, `userid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `plrecovery` (
+          `id` INT NOT NULL AUTO_INCREMENT,
+          `lid` INT NOT NULL DEFAULT 0,
+          `userid` INT NOT NULL,
+          `code_hash` CHAR(64) NOT NULL,
+          `used` DATETIME NULL,
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`id`),
+          KEY `idx_user` (`lid`, `userid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `plwebauthn` (
+          `id` INT NOT NULL AUTO_INCREMENT,
+          `lid` INT NOT NULL DEFAULT 0,
+          `userid` INT NOT NULL,
+          `credid` VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+          `pubkey` TEXT NOT NULL,
+          `alg` INT NOT NULL,
+          `signcount` BIGINT NOT NULL DEFAULT 0,
+          `name` VARCHAR(60) NOT NULL,
+          `discoverable` TINYINT NOT NULL DEFAULT 0,
+          `transports` VARCHAR(120) NOT NULL DEFAULT '',
+          `created` DATETIME NOT NULL,
+          `lastused` DATETIME NULL,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `idx_cred` (`lid`, `credid`),
+          KEY `idx_user` (`lid`, `userid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;

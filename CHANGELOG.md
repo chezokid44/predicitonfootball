@@ -5,6 +5,24 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.9.0 (21 November 2026)
+
+**2-step log-in and passkeys** (Your account > Security):
+- Authenticator apps (Google Authenticator, Microsoft Authenticator, Authy,
+  1Password...): QR code set-up, 6-digit codes, each code works once.
+- Passkeys (phone, Windows Hello, Touch ID, YubiKey with PIN): "Log in with a
+  passkey" with no password, or as the second step.
+- Security keys (YubiKey etc.): tapped after the password.
+- 10 single-use recovery codes, shown once; new ones on demand.
+- Changes need the current password; password reset links still need the
+  second step; 5 wrong codes means starting again.
+- Admin > Players shows who has 2-step on and can switch it off for a player
+  who lost their phone or key.
+- New setting `REQUIRE_2FA_ADMINS` (Settings > Rules): admins must turn on
+  2-step before using the admin pages.
+- New tables `pltotp`, `plrecovery`, `plwebauthn`; new `api/twostep.php`
+  and `assets/qrcode.js`.
+
 ## v2.8.0 (21 November 2026)
 
 **Points adjustments on the league tables**, e.g. a team starting on -4:
