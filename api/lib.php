@@ -358,6 +358,7 @@ function default_settings(): array {
     'HOME_PAGE_TITLE'   => [2, '', 'Text for the footer link.', 'text'],
     'DEF_ICON'          => [2, 'default.gif', 'Default icon for new users (old script).', 'text'],
     'ADMIN_EMAIL'       => [2, '', 'Administrator contact address.', 'email'],
+    'AUTO_RESULTS'      => [2, 'FALSE', 'Fetch results automatically from each competition\'s results source (Admin > Results), every 30 minutes while matches that kicked off 2 hours ago have no result. Only fills in empty results.', 'bool'],
     'ADMIN_SIGNATURE'   => [2, '', 'Signature for administrator emails (old script).', 'text'],
     'CHATROOM_URL'      => [2, '', 'Chat room link (old script).', 'url'],
     'LOGFILE'           => [2, '', 'Log file path (old script).', 'text'],

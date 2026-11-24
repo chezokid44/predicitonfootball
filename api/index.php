@@ -20,6 +20,7 @@ require __DIR__ . '/alerts.php';
 require __DIR__ . '/standings.php';
 require __DIR__ . '/discord.php';
 require __DIR__ . '/twostep.php';
+require __DIR__ . '/autoresults.php';
 
 // Fatal PHP errors (which skip the catch below) are reported to Discord too.
 register_shutdown_function(function () {
@@ -41,7 +42,7 @@ try {
 
   $route = (string)($_GET['r'] ?? '');
   $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-  $routes = routes() + feature_routes() + botguard_routes() + league_routes() + page_routes() + season_routes() + alert_routes() + standings_routes() + discord_routes() + twostep_routes();
+  $routes = routes() + feature_routes() + botguard_routes() + league_routes() + page_routes() + season_routes() + alert_routes() + standings_routes() + discord_routes() + twostep_routes() + autoresults_routes();
   if (!isset($routes[$route])) {
     fail(404, 'Unknown API route.');
   }
@@ -60,6 +61,7 @@ try {
   }
   // The daily list of blocked addresses, if one is due (sent after this reply).
   schedule_block_digest();
+  schedule_auto_results();
   respond($handler());
 } catch (ApiError $e) {
   respond(['error' => $e->getMessage(), 'code' => $e->errorCode], $e->status);

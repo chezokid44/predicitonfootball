@@ -5,6 +5,21 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.10.0 (24 November 2026)
+
+**Fetch results automatically, from free sources** (Admin > Results):
+- Per competition: fixturedownload.com (JSON or CSV link, no sign-up) or
+  football-data.org (free API key; codes like ELC, PL). Loose team-name
+  matching plus optional "their name = our name" lines.
+- Only matches that have kicked off (today or earlier) are looked at; future
+  fixtures are never touched, postponed ones are skipped.
+- "Check for results" previews new results, ones not found, and ones that
+  differ; only empty results are filled in unless you choose to correct.
+- New setting `AUTO_RESULTS`: checks every 30 minutes while a match 2 hours
+  past kick-off has no result, after a page is answered. Failures are logged
+  and sent to Discord.
+- New file `api/autoresults.php`.
+
 ## v2.9.0 (21 November 2026)
 
 **2-step log-in and passkeys** (Your account > Security):
