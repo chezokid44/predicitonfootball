@@ -574,20 +574,44 @@ function route_admin_result(): array {
 function route_admin_fulltime(): array {
   require_admin();
   $b = body();
-  $ids = array_values(array_unique(array_map('intval', (array)($b['ids'] ?? [$b['id'] ?? 0]))));
+  $ids = array_values(array_unique(array_filter(array_map('intval', (array)($b['ids'] ?? [$b['id'] ?? 0])), fn($i) => $i > 0)));
   $on = !empty($b['on']);
-  if (!$ids || count($ids) > 500) fail(422, 'Choose the results to mark.');
-  $done = [];
-  foreach ($ids as $id) {
-    $m = get_match($id);
-    $label = clean_text($m['hometeam']) . ' v ' . clean_text($m['awayteam']);
-    if ($on && $m['homescore'] === null) fail(422, "$label has no result yet. Save the result before marking it FT.");
-    if ($on === is_fulltime($id)) continue;
-    set_fulltime($id, $on);
-    $done[] = $on ? "$label {$m['homescore']}-{$m['awayscore']}" : $label;
+  if (!$ids) fail(422, 'Choose the results to mark.');
+  if (count($ids) > 20000) fail(422, 'Mark up to 20,000 results at a time.');
+  $ft = fulltime_map();
+  $rows = [];
+  foreach (array_chunk($ids, 500) as $chunk) {
+    $in = implode(',', array_fill(0, count($chunk), '?'));
+    foreach (q('SELECT matchid, hometeam, awayteam, homescore, awayscore FROM ' . t('matches') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $chunk))->fetchAll() as $r) {
+      $rows[(int)$r['matchid']] = $r;
+    }
   }
-  if ($done) log_event('result', mb_substr(($on ? 'Marked FT: ' : 'Unlocked (no longer FT): ') . implode('; ', $done), 0, 255));
-  return ['changed' => count($done), 'fixtures' => array_map(fn($id) => match_out(get_match($id)), $ids)];
+  if (!$rows) fail(404, 'Those fixtures no longer exist.');
+  $todo = [];
+  foreach ($rows as $id => $m) {
+    if ($on && $m['homescore'] === null) {
+      if (count($ids) === 1) fail(422, clean_text($m['hometeam']) . ' v ' . clean_text($m['awayteam']) . ' has no result yet. Save the result before marking it FT.');
+      continue;   // marking many: skip ones without a result
+    }
+    if ($on !== isset($ft[$id])) $todo[$id] = $m;
+  }
+  if ($todo) {
+    $who = mb_substr((string)(current_user()['username'] ?? ''), 0, 32);
+    $now = now_str();
+    $pdo = db();
+    $pdo->beginTransaction();
+    foreach ($todo as $id => $m) {
+      q('DELETE FROM ' . xt('fulltime') . ' WHERE lid = ? AND matchid = ?', [lid(), $id]);
+      if ($on) q('INSERT INTO ' . xt('fulltime') . ' (lid, matchid, username, created) VALUES (?, ?, ?, ?)', [lid(), $id, $who, $now]);
+    }
+    $pdo->commit();
+    fulltime_map(true);
+    $labels = array_map(fn($m) => clean_text($m['hometeam']) . ' v ' . clean_text($m['awayteam']) . ($on ? " {$m['homescore']}-{$m['awayscore']}" : ''), array_values($todo));
+    log_event('result', mb_substr(($on ? 'Marked ' . count($todo) . ' FT: ' : 'Unlocked ' . count($todo) . ' (no longer FT): ') . implode('; ', $labels), 0, 255));
+  }
+  $out = ['changed' => count($todo)];
+  if (count($ids) <= 20) $out['fixtures'] = array_map(fn($id) => match_out(get_match($id)), array_keys($rows));
+  return $out;
 }
 
 function route_admin_users(): array {

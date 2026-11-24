@@ -5,6 +5,13 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.11.1 (24 November 2026)
+
+- Fixed: **Mark N saved results FT** failed with "Choose the results to
+  mark" when more than 500 results were shown. Any number can now be marked
+  at once, in one quick database transaction; results without a score are
+  skipped.
+
 ## v2.11.0 (24 November 2026)
 
 Built on v2.9.0: **the automatic results fetching from v2.10.0 is removed**
