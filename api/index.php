@@ -20,7 +20,6 @@ require __DIR__ . '/alerts.php';
 require __DIR__ . '/standings.php';
 require __DIR__ . '/discord.php';
 require __DIR__ . '/twostep.php';
-require __DIR__ . '/autoresults.php';
 
 // Fatal PHP errors (which skip the catch below) are reported to Discord too.
 register_shutdown_function(function () {
@@ -42,7 +41,7 @@ try {
 
   $route = (string)($_GET['r'] ?? '');
   $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-  $routes = routes() + feature_routes() + botguard_routes() + league_routes() + page_routes() + season_routes() + alert_routes() + standings_routes() + discord_routes() + twostep_routes() + autoresults_routes();
+  $routes = routes() + feature_routes() + botguard_routes() + league_routes() + page_routes() + season_routes() + alert_routes() + standings_routes() + discord_routes() + twostep_routes();
   if (!isset($routes[$route])) {
     fail(404, 'Unknown API route.');
   }
@@ -61,7 +60,6 @@ try {
   }
   // The daily list of blocked addresses, if one is due (sent after this reply).
   schedule_block_digest();
-  schedule_auto_results();
   respond($handler());
 } catch (ApiError $e) {
   respond(['error' => $e->getMessage(), 'code' => $e->errorCode], $e->status);
@@ -94,6 +92,7 @@ function routes(): array {
     'admin.delete'     => ['POST', 'route_admin_delete_fixture'],
     'admin.deletemany' => ['POST', 'route_admin_delete_fixtures'],
     'admin.result'     => ['POST', 'route_admin_result'],
+    'admin.fulltime'   => ['POST', 'route_admin_fulltime'],
     'admin.users'      => ['GET',  'route_admin_users'],
     'admin.user'       => ['POST', 'route_admin_user'],
     'admin.deleteuser' => ['POST', 'route_admin_delete_user'],
@@ -438,6 +437,10 @@ function route_admin_fixture(): array {
   $id = (int)($b['id'] ?? 0);
   if ($id) {
     $old = get_match($id);
+    if (is_fulltime($id) && (substr((string)$old['matchdate'], 0, 16) !== substr($kickoff, 0, 16)
+        || mb_strtolower(clean_text($old['hometeam'])) !== mb_strtolower($home) || mb_strtolower(clean_text($old['awayteam'])) !== mb_strtolower($away))) {
+      refuse_if_fulltime($old);
+    }
     q('UPDATE ' . t('matches') . ' SET matchdate = ?, hometeam = ?, awayteam = ? WHERE lid = ? AND matchid = ?',
       [$kickoff, $home, $away, lid(), $id]);
     // A postponed match with a new kick-off time is back on: predictions reopen.
@@ -496,6 +499,7 @@ function route_admin_delete_fixture(): array {
   q('DELETE FROM ' . t('matches') . ' WHERE lid = ? AND matchid = ?', [lid(), $id]);
   $pdo->commit();
   set_postponed($id, null);
+  set_fulltime($id, false);
   with_table('matchcomp', fn() => q('DELETE FROM ' . xt('matchcomp') . ' WHERE lid = ? AND matchid = ?', [lid(), $id]));
   save_standings(compute_standings());
   log_event('fixture_delete', 'Deleted fixture: ' . clean_text($gone['hometeam']) . ' v ' . clean_text($gone['awayteam']) . ', ' . substr((string)$gone['matchdate'], 0, 16));
@@ -524,6 +528,7 @@ function route_admin_delete_fixtures(): array {
   q('DELETE FROM ' . xt('matchcomp') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $ids));
   $pdo->commit();
   with_table('postponed', fn() => q('DELETE FROM ' . xt('postponed') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $ids)));
+  with_table('fulltime', fn() => q('DELETE FROM ' . xt('fulltime') . " WHERE lid = ? AND matchid IN ($in)", array_merge([lid()], $ids)));
   postponed_map(true);
   competition_map(true);
   save_standings(compute_standings());
@@ -537,6 +542,7 @@ function route_admin_result(): array {
   $b = body();
   $id = (int)($b['id'] ?? 0);
   $m = get_match($id);
+  refuse_if_fulltime($m);
   if (is_p_score($b['home'] ?? null) || is_p_score($b['away'] ?? null)) {
     postpone_from_results($m);
     save_standings(compute_standings());
@@ -559,6 +565,29 @@ function route_admin_result(): array {
   save_standings(compute_standings());
   log_event('result', clean_text($m['hometeam']) . ' v ' . clean_text($m['awayteam']) . ': ' . ($home === null ? 'result cleared' : "$home-$away"));
   return ['fixture' => match_out(get_match($id))];
+}
+
+/**
+ * Mark results FT (full time) or unlock them. Body: ids (or id) and on.
+ * Only matches with a result can be marked FT.
+ */
+function route_admin_fulltime(): array {
+  require_admin();
+  $b = body();
+  $ids = array_values(array_unique(array_map('intval', (array)($b['ids'] ?? [$b['id'] ?? 0]))));
+  $on = !empty($b['on']);
+  if (!$ids || count($ids) > 500) fail(422, 'Choose the results to mark.');
+  $done = [];
+  foreach ($ids as $id) {
+    $m = get_match($id);
+    $label = clean_text($m['hometeam']) . ' v ' . clean_text($m['awayteam']);
+    if ($on && $m['homescore'] === null) fail(422, "$label has no result yet. Save the result before marking it FT.");
+    if ($on === is_fulltime($id)) continue;
+    set_fulltime($id, $on);
+    $done[] = $on ? "$label {$m['homescore']}-{$m['awayscore']}" : $label;
+  }
+  if ($done) log_event('result', mb_substr(($on ? 'Marked FT: ' : 'Unlocked (no longer FT): ') . implode('; ', $done), 0, 255));
+  return ['changed' => count($done), 'fixtures' => array_map(fn($id) => match_out(get_match($id)), $ids)];
 }
 
 function route_admin_users(): array {

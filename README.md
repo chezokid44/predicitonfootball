@@ -114,25 +114,12 @@ settings carry over.
   a * and the reason is shown under the table. Several adjustments for one
   team add up, and each can be removed. They're in backups, and in the
   "All seasons" view.
-- Fetch results automatically, free (Admin > Results > "Fetch results
-  automatically"). Only matches that have already kicked off (today or
-  earlier) are looked at; future fixtures are never touched, postponed ones
-  are skipped, and only empty results are filled in (results that differ
-  from the source are shown, and changed only if you tick the box). Choose a
-  source per competition:
-  - *fixturedownload.com* (free, no sign-up): paste the competition's JSON
-    or CSV link. Team names match fixtures imported from the same site.
-  - *football-data.org* (free account; the free plan covers the Premier
-    League, Championship and other top leagues, 10 requests a minute): save
-    the API key they email you, and enter the competition code (ELC =
-    Championship, PL = Premier League). Names are matched loosely ("Leeds
-    United FC" = "Leeds United"); add "their name = our name" lines for
-    teams spelled differently (e.g. "Wolves = Wolverhampton Wanderers").
-  Press **Check for results** to see what would change, then save. With
-  `AUTO_RESULTS` on (Settings > League), the site checks by itself every 30
-  minutes while a match that kicked off 2 hours ago has no result, after
-  answering a page (no cron needed). Failures go to Admin > Activity and
-  Discord. The server must be allowed to make outgoing https connections.
+- FT (full time): on Admin > Results, press **FT** next to a saved result
+  (or **Mark N saved results FT**) once it's final. The result is locked:
+  it can't be changed, cleared, marked P, or changed by a fixture import, and
+  the fixture's kick-off and teams can't be edited. Players see an FT tag on
+  the Results page. **Unlock** (press twice) allows changes again. FT marks
+  are in backups.
 - Import fixtures and results (Admin > Data): from a CSV with Date, Time,
   Home, Away and optionally Competition and Result columns, or a fixture-list
   download such as fixturedownload.com's (Date "14/08/2026 20:00", Home Team,
@@ -174,8 +161,6 @@ api/config.sample.php    example settings (the installer writes api/config.php)
 install/index.php        the installer (locks itself once set up)
 install/installer.php    installer logic (refuses direct requests)
 hp/, wp-login.php, xmlrpc.php   bot traps (see Security)
-api/autoresults.php      fetches results from fixturedownload.com or
-                         football-data.org
 api/twostep.php          2-step log-in: authenticator apps, passkeys,
                          security keys, recovery codes
 assets/qrcode.js         QR codes for setting up authenticator apps (MIT,
@@ -455,7 +440,7 @@ UPDATE pluserdata SET usertype = 4 WHERE username = 'their-username';
   (addresses blocked by the bot traps), `plleagues`, `plleaguecomps`,
   `plleaguemembers` (private leagues), `plfollows` (the competitions each
   player plays), `plpages`, `plmenu`, `plseasons`, `plteams` and
-  `plcompteams` (the teams in each competition each season), `plpostponed`,
+  `plcompteams` (the teams in each competition each season), `plpostponed`, `plfulltime` (results marked FT),
   `plstore` (the Discord webhook and alert bookkeeping), `plmisses`
   (missing pages asked for, kept 7 days), `plpointadj` (league table
   points adjustments), and `pltotp`, `plrecovery` and `plwebauthn`

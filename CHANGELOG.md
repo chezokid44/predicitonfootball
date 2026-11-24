@@ -5,6 +5,21 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.11.0 (24 November 2026)
+
+Built on v2.9.0: **the automatic results fetching from v2.10.0 is removed**
+(`api/autoresults.php` deleted; nothing else from v2.10.0 is kept).
+
+**Mark results FT (full time)** on Admin > Results:
+- **FT** next to a saved result, or **Mark N saved results FT** for all of
+  them. The result is then locked: it can't be changed, cleared or marked P
+  (single or bulk), a fixture import leaves it as it is, and its kick-off and
+  teams can't be edited.
+- **Unlock** (press twice) allows changes again. Marking and unlocking are
+  logged in Admin > Activity.
+- Players see an FT tag on the Results page and "FT 2-1" on Predictions.
+- Included in backups. New table `plfulltime`.
+
 ## v2.10.0 (24 November 2026)
 
 **Fetch results automatically, from free sources** (Admin > Results):

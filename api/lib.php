@@ -358,7 +358,6 @@ function default_settings(): array {
     'HOME_PAGE_TITLE'   => [2, '', 'Text for the footer link.', 'text'],
     'DEF_ICON'          => [2, 'default.gif', 'Default icon for new users (old script).', 'text'],
     'ADMIN_EMAIL'       => [2, '', 'Administrator contact address.', 'email'],
-    'AUTO_RESULTS'      => [2, 'FALSE', 'Fetch results automatically from each competition\'s results source (Admin > Results), every 30 minutes while matches that kicked off 2 hours ago have no result. Only fills in empty results.', 'bool'],
     'ADMIN_SIGNATURE'   => [2, '', 'Signature for administrator emails (old script).', 'text'],
     'CHATROOM_URL'      => [2, '', 'Chat room link (old script).', 'url'],
     'LOGFILE'           => [2, '', 'Log file path (old script).', 'text'],
@@ -519,6 +518,38 @@ function postponed_map(bool $reload = false): array {
   return $map;
 }
 
+/** Results marked FT (full time): locked, so nothing can change them until unlocked. */
+function fulltime_map(bool $reload = false): array {
+  static $map = null;
+  if ($map === null || $reload) {
+    $map = [];
+    foreach (with_table('fulltime', fn() => q('SELECT matchid, username, created FROM ' . xt('fulltime') . ' WHERE lid = ?', [lid()])->fetchAll()) as $r) {
+      $map[(int)$r['matchid']] = ['by' => (string)$r['username'], 'since' => (string)$r['created']];
+    }
+  }
+  return $map;
+}
+
+function is_fulltime(int $matchId): bool {
+  return isset(fulltime_map()[$matchId]);
+}
+
+function set_fulltime(int $matchId, bool $on): void {
+  with_table('fulltime', fn() => q('DELETE FROM ' . xt('fulltime') . ' WHERE lid = ? AND matchid = ?', [lid(), $matchId]));
+  if ($on) {
+    q('INSERT INTO ' . xt('fulltime') . ' (lid, matchid, username, created) VALUES (?, ?, ?, ?)',
+      [lid(), $matchId, mb_substr((string)(current_user()['username'] ?? ''), 0, 32), now_str()]);
+  }
+  fulltime_map(true);
+}
+
+/** Stop any change to a result that's marked FT. */
+function refuse_if_fulltime(array $m): void {
+  if (is_fulltime((int)$m['matchid'])) {
+    fail(422, clean_text($m['hometeam']) . ' v ' . clean_text($m['awayteam']) . ' is marked FT, so its result is locked. Unlock it first if it really needs changing.');
+  }
+}
+
 function is_postponed(int $matchId): bool {
   return isset(postponed_map()[$matchId]);
 }
@@ -548,6 +579,7 @@ function match_out(array $m): array {
     'started' => $started,              // kicked off (a postponed match hasn't)
     'postponed' => $pp !== null,
     'postponed_reason' => $pp ? clean_text($pp['reason']) : null,
+    'full_time' => isset(fulltime_map()[(int)$m['matchid']]),
     'closes' => $closes,
     'result' => ($home === null || $away === null) ? null : ['home' => (int)$home, 'away' => (int)$away],
     'competition' => match_competition((int)$m['matchid']),
@@ -770,7 +802,7 @@ function extra_tables(): array {
           'leagues' => 'plleagues', 'leaguecomps' => 'plleaguecomps', 'members' => 'plleaguemembers',
           'follows' => 'plfollows', 'pages' => 'plpages', 'menu' => 'plmenu',
           'seasons' => 'plseasons', 'teams' => 'plteams', 'compteams' => 'plcompteams',
-          'postponed' => 'plpostponed', 'store' => 'plstore', 'misses' => 'plmisses', 'pointadj' => 'plpointadj',
+          'postponed' => 'plpostponed', 'fulltime' => 'plfulltime', 'store' => 'plstore', 'misses' => 'plmisses', 'pointadj' => 'plpointadj',
           'totp' => 'pltotp', 'recovery' => 'plrecovery', 'webauthn' => 'plwebauthn'];
 }
 
@@ -920,6 +952,17 @@ function extra_table_sql(string $name, string $driver): string {
           `value` TEXT,
           `updated` DATETIME NOT NULL,
           PRIMARY KEY (`lid`, `name`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
+  }
+  if ($name === 'fulltime') {
+    return $driver === 'sqlite'
+      ? "CREATE TABLE IF NOT EXISTS {$tables['fulltime']} (lid INT NOT NULL DEFAULT 0, matchid INT NOT NULL, username VARCHAR(32) NOT NULL DEFAULT '', created DATETIME NOT NULL, PRIMARY KEY (lid, matchid))"
+      : "CREATE TABLE IF NOT EXISTS `{$tables['fulltime']}` (
+          `lid` INT NOT NULL DEFAULT 0,
+          `matchid` INT NOT NULL,
+          `username` VARCHAR(32) NOT NULL DEFAULT '',
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`lid`, `matchid`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4";
   }
   if ($name === 'postponed') {

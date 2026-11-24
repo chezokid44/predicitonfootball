@@ -369,3 +369,12 @@ CREATE TABLE IF NOT EXISTS `plwebauthn` (
           UNIQUE KEY `idx_cred` (`lid`, `credid`),
           KEY `idx_user` (`lid`, `userid`)
         ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;
+
+-- Results marked FT (full time): locked against changes.
+CREATE TABLE IF NOT EXISTS `plfulltime` (
+          `lid` INT NOT NULL DEFAULT 0,
+          `matchid` INT NOT NULL,
+          `username` VARCHAR(32) NOT NULL DEFAULT '',
+          `created` DATETIME NOT NULL,
+          PRIMARY KEY (`lid`, `matchid`)
+        ) ENGINE=InnoDB DEFAULT CHARACTER SET=utf8mb4;

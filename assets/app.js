@@ -485,7 +485,7 @@
         status = f.postponed
           ? `${ppTag(f)}<br><span class="muted">New date to come${p ? '. Your prediction is kept' : ''}</span>`
           : f.result
-          ? `<a href="#/match/${f.id}">Final ${f.result.home}–${f.result.away}</a><br>${p ? autoTag(p) + outcomePill(f.my_points, f.my_outcome) : '<span class="muted">No prediction</span>'}`
+          ? `<a href="#/match/${f.id}">${f.full_time ? 'FT' : 'Final'} ${f.result.home}–${f.result.away}</a><br>${p ? autoTag(p) + outcomePill(f.my_points, f.my_outcome) : '<span class="muted">No prediction</span>'}`
           : `<a href="#/match/${f.id}">${p ? (f.started ? 'Kicked off' : 'Predictions closed') : 'Missed'}</a>${p && p.auto ? '<br>' + autoTag(p) : ''}`;
       }
       return `<li class="${rowClass(o)}">
@@ -591,7 +591,7 @@
         <span class="team home">${teamName(f, 'home')}</span>
         <span class="score"><span class="box result">${f.result.home}</span><span class="dash" aria-hidden="true">–</span><span class="box result">${f.result.away}</span></span>
         <span class="team away">${teamName(f, 'away')}</span>
-        <span class="status"><a href="#/match/${f.id}">${esc(mine || 'Predictions')}</a>${state.user && f.my_prediction ? '<br>' + autoTag(f.my_prediction) + outcomePill(f.my_points, f.my_outcome) : ''}</span>
+        <span class="status">${f.full_time ? '<span class="ft-tag" title="Full time">FT</span> ' : ''}<a href="#/match/${f.id}">${esc(mine || 'Predictions')}</a>${state.user && f.my_prediction ? '<br>' + autoTag(f.my_prediction) + outcomePill(f.my_points, f.my_outcome) : ''}</span>
       </li>`;
     };
     const draw = () => {
@@ -671,7 +671,7 @@
           <span class="team home">${teamName(f, 'home')}</span>
           <span class="score"><span class="box locked">${f.prediction.home}</span><span class="dash" aria-hidden="true">–</span><span class="box locked">${f.prediction.away}</span></span>
           <span class="team away">${teamName(f, 'away')}</span>
-          <span class="status"><a href="#/match/${f.id}">${f.result ? `Final ${f.result.home}–${f.result.away}` : (f.started ? 'Kicked off' : f.locked ? 'Predictions closed' : 'Upcoming')}</a>${f.result || f.prediction.auto ? '<br>' : ''}${autoTag(f.prediction)}${f.result ? outcomePill(f.points, f.outcome) : ''}</span>
+          <span class="status"><a href="#/match/${f.id}">${f.result ? `${f.full_time ? 'FT' : 'Final'} ${f.result.home}–${f.result.away}` : (f.started ? 'Kicked off' : f.locked ? 'Predictions closed' : 'Upcoming')}</a>${f.result || f.prediction.auto ? '<br>' : ''}${autoTag(f.prediction)}${f.result ? outcomePill(f.points, f.outcome) : ''}</span>
         </li>`;
       }
       html += `</ul>`;
@@ -1557,16 +1557,15 @@
     const started = adminFiltered(allStarted, filter)
       .sort((a, b) => (filter.show === 'todo' ? (!!a.result - !!b.result) : 0) || b.kickoff.localeCompare(a.kickoff));
     if (!allStarted.length) {
-      adminShell('results', `<p class="lede">No matches have kicked off yet. Results can be entered once a match starts.</p><div id="fetch-panel"></div>`);
-      fetchPanel(document.getElementById('fetch-panel'));
+      adminShell('results', `<p class="lede">No matches have kicked off yet. Results can be entered once a match starts.</p>`);
       return;
     }
     const waiting = started.filter((f) => !f.result).length;
     const elsewhere = allStarted.filter((f) => !f.result).length - waiting;
     const ppCount = all.filter((f) => f.postponed).length;
     let html = `<p class="lede">${waiting ? `${esc(plural(waiting, 'match', 'matches'))} here ${waiting === 1 ? 'needs' : 'need'} a result.` : 'Every match shown has a result.'}
-      The table updates as soon as you save. Clear both scores to remove a result. Type <strong>P</strong> (or press P) for a match that was postponed.</p>
-      <div id="fetch-panel"></div>
+      The table updates as soon as you save. Clear both scores to remove a result. Type <strong>P</strong> (or press P) for a match that was postponed.
+      Press <strong>FT</strong> once a result is final: it's locked, so it can't be changed by mistake or by a fixture import (Unlock undoes it).</p>
       ${adminFilterBar(filter, { show: true })}
       ${elsewhere ? `<p class="muted tight">${esc(plural(elsewhere, 'other match', 'other matches'))} outside this season or competition ${elsewhere === 1 ? 'needs' : 'need'} a result.</p>` : ''}
       ${ppCount ? `<p class="muted tight">${esc(plural(ppCount, 'postponed match', 'postponed matches'))} ${ppCount === 1 ? 'isn\'t' : 'aren\'t'} listed. <a href="#/admin/fixtures">Give ${ppCount === 1 ? 'it its' : 'them their'} new date</a> first.</p>` : ''}
@@ -1574,24 +1573,30 @@
     for (const f of started) {
       // Text boxes so P (postponed) can be typed as well as a score.
       const box = (side) => `<input class="box${f.result ? ' filled' : ''}" type="text" maxlength="2" autocomplete="off" spellcheck="false"
-        data-side="${side}" value="${f.result ? f.result[side] : ''}" aria-label="${esc(side === 'home' ? f.home_team : f.away_team)} goals, or P if postponed">`;
-      html += `<li class="fixture" data-id="${f.id}">
+        data-side="${side}" value="${f.result ? f.result[side] : ''}" aria-label="${esc(side === 'home' ? f.home_team : f.away_team)} goals, or P if postponed"${f.full_time ? ' disabled' : ''}>`;
+      const actions = f.full_time
+        ? `<span class="ft-tag" title="Full time: this result is locked">FT</span>
+          <button class="btn small quiet" type="button" data-unlock title="Allow this result to be changed again">Unlock</button>`
+        : `<button class="btn small" type="button" data-save>${f.result ? 'Update' : 'Save result'}</button>
+          <button class="btn small quiet pp-btn" type="button" data-pp title="Mark as postponed">P</button>
+          ${f.result ? '<button class="btn small quiet ft-btn" type="button" data-ft title="Mark as full time: locks the result so it can\'t be changed">FT</button>' : ''}`;
+      html += `<li class="fixture${f.full_time ? ' ft-row' : ''}" data-id="${f.id}">
         <span class="time">${esc(fmtShort(f.kickoff).split(',')[0])}${compTag(f.competition)}</span>
         <span class="team home">${teamName(f, 'home')}</span>
         <span class="score">${box('home')}<span class="dash" aria-hidden="true">–</span>${box('away')}</span>
         <span class="team away">${teamName(f, 'away')}</span>
-        <span class="status"><button class="btn small" type="button" data-save>${f.result ? 'Update' : 'Save result'}</button>
-          <button class="btn small quiet pp-btn" type="button" data-pp title="Mark as postponed">P</button></span>
+        <span class="status">${actions}</span>
       </li>`;
     }
+    const canFt = started.filter((f) => f.result && !f.full_time).length;
     html += `</ul><div class="savebar"><button class="btn" type="button" id="save-all">Save all results</button>
+      ${canFt ? `<button class="btn quiet" type="button" id="ft-all">Mark ${esc(plural(canFt, 'saved result'))} FT</button>` : ''}
       <span class="msg" id="results-msg" aria-live="polite">Fill in several scores, then save them together.</span></div>`;
     adminShell('results', html + '');
-    fetchPanel(document.getElementById('fetch-panel'));
     bindAdminFilter(adminResults);
     if (!started.length) return;
     const original = Object.fromEntries(started.map((f) => [String(f.id), f.result ? `${f.result.home}-${f.result.away}` : '-']));
-    const changedRows = () => [...main.querySelectorAll('li.fixture[data-id]')].filter((li) =>
+    const changedRows = () => [...main.querySelectorAll('li.fixture[data-id]:not(.ft-row)')].filter((li) =>
       `${li.querySelector('[data-side=home]').value}-${li.querySelector('[data-side=away]').value}` !== original[li.dataset.id]);
     main.querySelector('ul.fixtures').addEventListener('input', (e) => {
       if (!e.target.classList.contains('box')) return;
@@ -1630,108 +1635,36 @@
         adminResults();
       } catch (err) { toast(err.message, true); }
     }));
+    const setFt = async (ids, on, btn) => {
+      const res = await submitting(btn, () => api('admin.fulltime', { method: 'POST', body: { ids, on: on ? 1 : 0 } }));
+      toast(on ? `Marked ${plural(res.changed, 'result')} FT. ${res.changed === 1 ? 'It\'s' : 'They\'re'} locked now.` : 'Unlocked: the result can be changed again.');
+      adminResults();
+    };
+    main.querySelectorAll('[data-ft]').forEach((btn) => btn.addEventListener('click', async () => {
+      const li = btn.closest('[data-id]');
+      const f = started.find((x) => x.id === Number(li.dataset.id));
+      const now = `${li.querySelector('[data-side=home]').value}-${li.querySelector('[data-side=away]').value}`;
+      if (f && now !== `${f.result.home}-${f.result.away}`) { toast('Save the changed result first, then mark it FT.', true); return; }
+      try { await setFt([Number(li.dataset.id)], true, btn); } catch (err) { toast(err.message, true); }
+    }));
+    main.querySelectorAll('[data-unlock]').forEach((btn) => btn.addEventListener('click', () => {
+      armed(btn, 'Unlock this result?', async () => {
+        try { await setFt([Number(btn.closest('[data-id]').dataset.id)], false, btn); } catch (err) { toast(err.message, true); }
+      });
+    }));
+    const ftAll = document.getElementById('ft-all');
+    if (ftAll) ftAll.addEventListener('click', () => {
+      if (changedRows().length) { toast('Save your changed results first.', true); return; }
+      armed(ftAll, `Lock ${plural(canFt, 'result')}?`, async () => {
+        try { await setFt(started.filter((f) => f.result && !f.full_time).map((f) => f.id), true, ftAll); } catch (err) { toast(err.message, true); }
+      });
+    });
     main.querySelectorAll('[data-pp]').forEach((btn) => btn.addEventListener('click', () => {
       const li = btn.closest('[data-id]');
       li.querySelectorAll('.box').forEach((b) => { b.value = 'P'; b.classList.add('filled', 'pp'); });
       li.querySelector('.box').dispatchEvent(new Event('input', { bubbles: true }));
       li.querySelector('[data-save]').focus();
     }));
-  }
-
-  // Admin > Results: fetch results from a free source.
-  const RS_STATUS = { new: 'New result', same: 'Already saved', differs: 'Different from ours', not_found: 'Not found in the source',
-    no_result: 'No result there yet', postponed: 'Postponed there' };
-  async function fetchPanel(box, keepOpen = false) {
-    if (!box) return;
-    let d;
-    try { d = await api('admin.resultsources'); } catch (err) { box.innerHTML = `<p class="error">${esc(err.message)}</p>`; return; }
-    const set = d.sources.filter((x) => x.type !== 'none');
-    const last = d.last ? `Last fetch ${esc(fmtShort(d.last.at))}${d.last.auto ? ' (automatic)' : ''}: ${esc(plural(d.last.saved, 'result'))} saved.` : '';
-    const srcRow = (x) => `<form class="rs-form" data-comp="${x.competition_id}">
-        <fieldset><legend>${esc(x.name)}</legend>
-        <label>Results come from<select name="type">
-          <option value="none"${x.type === 'none' ? ' selected' : ''}>Nowhere (I type them in)</option>
-          <option value="fixturedownload"${x.type === 'fixturedownload' ? ' selected' : ''}>fixturedownload.com (free, no sign-up)</option>
-          <option value="footballdata"${x.type === 'footballdata' ? ' selected' : ''}>football-data.org (free API key)</option></select></label>
-        <label class="rs-url">fixturedownload.com link<span class="hint">On fixturedownload.com open the competition, choose JSON (or CSV), and copy the link, e.g. https://fixturedownload.com/feed/json/championship-2026.</span>
-          <input type="url" name="url" maxlength="300" value="${esc(x.url)}" placeholder="https://fixturedownload.com/feed/json/..."></label>
-        <label class="rs-code">football-data.org competition code<span class="hint">ELC = Championship, PL = Premier League.</span>
-          <input type="text" name="code" maxlength="5" value="${esc(x.code)}" placeholder="ELC"></label>
-        <label class="rs-aliases">Name differences (optional)<span class="hint">If the source spells a team differently, one per line: their name = our name, e.g. Wolves = Wolverhampton Wanderers.</span>
-          <textarea name="aliases" rows="2" maxlength="4000">${esc(x.aliases)}</textarea></label>
-        <div><button class="btn small" type="submit">Save</button></div></fieldset></form>`;
-    box.innerHTML = `<details class="fetch-box"${keepOpen || set.length ? ' open' : ''}>
-      <summary>Fetch results automatically (free)</summary>
-      <p class="muted">Gets the scores of matches that have already kicked off (today or earlier) from a free results site. Future fixtures are never touched, and only empty results are filled in.
-        ${d.auto ? 'Automatic fetching is <strong>on</strong>: the site checks every 30 minutes once a match is 2 hours past kick-off.' : 'Turn on <strong>AUTO_RESULTS</strong> in <a href="#/admin/settings">Settings</a> to fetch them by itself, or press the button.'}</p>
-      ${set.length ? `<p class="actions"><button class="btn" type="button" id="rs-check">Check for results</button>
-        <span class="muted">${esc(plural(d.waiting, 'match', 'matches'))} past kick-off waiting for a result. ${last}</span></p>` : '<p class="muted">Choose where each competition\'s results come from below first.</p>'}
-      <div id="rs-preview"></div>
-      <details class="rs-setup"${set.length ? '' : ' open'}><summary>Where results come from</summary>
-        ${d.sources.length ? d.sources.map(srcRow).join('') : '<p class="muted">Add a competition first (Admin > Competitions); results are fetched per competition.</p>'}
-        <form class="inline-form" id="fd-token"><label>football-data.org API key<span class="hint">${d.fd_token_set ? 'A key is saved (not shown). Enter a new one to replace it, or save it empty to remove it.' : 'Only for football-data.org: sign up free at football-data.org and paste the key they email you.'}</span>
-          <input type="password" name="token" maxlength="64" autocomplete="off"></label><div><button class="btn small" type="submit">Save key</button></div></form>
-      </details></details>`;
-    const showFields = (f) => {
-      const t = f.type.value;
-      f.querySelector('.rs-url').hidden = t !== 'fixturedownload';
-      f.querySelector('.rs-code').hidden = t !== 'footballdata';
-      f.querySelector('.rs-aliases').hidden = t === 'none';
-    };
-    box.querySelectorAll('.rs-form').forEach((f) => {
-      showFields(f);
-      f.type.addEventListener('change', () => showFields(f));
-      f.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        try {
-          await submitting(f.querySelector('button'), () => api('admin.resultsource.save', { method: 'POST', body: {
-            competition_id: Number(f.dataset.comp), type: f.type.value, url: f.url.value.trim(), code: f.code.value.trim(), aliases: f.aliases.value } }));
-          toast('Results source saved.');
-          fetchPanel(box, true);
-        } catch (err) { formError(f, err.message); }
-      });
-    });
-    const tf = box.querySelector('#fd-token');
-    tf.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      try {
-        await submitting(tf.querySelector('button'), () => api('admin.fdtoken.save', { method: 'POST', body: { token: tf.token.value.trim() } }));
-        toast(tf.token.value.trim() ? 'API key saved.' : 'API key removed.');
-        fetchPanel(box, true);
-      } catch (err) { formError(tf, err.message); }
-    });
-    const check = box.querySelector('#rs-check');
-    if (check) check.addEventListener('click', async () => {
-      const pv = box.querySelector('#rs-preview');
-      try {
-        const r = await submitting(check, () => api('admin.fetchresults', { method: 'POST', body: { dry_run: 1 } }));
-        const newCount = r.competitions.reduce((n, c) => n + c.rows.filter((x) => x.status === 'new').length, 0);
-        const diffCount = r.competitions.reduce((n, c) => n + c.rows.filter((x) => x.status === 'differs').length, 0);
-        const score = (x) => (x ? `${x[0]}–${x[1]}` : '');
-        pv.innerHTML = r.competitions.map((c) => `<h3>${esc(c.name)}</h3>
-          ${c.error ? `<p class="error">${esc(c.error)}</p>` : !c.rows.length ? '<p class="muted">No matches past kick-off.</p>'
-            : `<div class="table-wrap"><table class="league rs-table"><thead><tr><th scope="col" class="name">Match</th><th scope="col">Kick-off</th><th scope="col">Ours</th><th scope="col">Theirs</th><th scope="col" class="name">Status</th></tr></thead><tbody>
-            ${c.rows.map((x) => `<tr class="rs-${x.status}"><td class="name">${esc(x.label)}</td><td class="nowrap">${esc(fmtShort(x.kickoff))}</td>
-              <td>${score(x.current)}</td><td>${score(x.result)}</td><td class="name">${esc(RS_STATUS[x.status] || x.status)}</td></tr>`).join('')}</tbody></table></div>`}`).join('')
-          + (newCount || diffCount ? `<form class="inline-form" id="rs-apply">
-            ${diffCount ? `<label class="check"><input type="checkbox" name="fix"> Also correct the ${esc(plural(diffCount, 'result'))} that ${diffCount === 1 ? 'differs' : 'differ'} from the source</label>` : ''}
-            <div><button class="btn" type="submit">Save ${esc(plural(newCount, 'new result'))}</button></div></form>`
-            : '<p class="muted">Nothing new to save.</p>');
-        const af = pv.querySelector('#rs-apply');
-        if (af) {
-          const btn = af.querySelector('button');
-          if (af.fix) af.fix.addEventListener('change', () => { btn.textContent = `Save ${plural(newCount + (af.fix.checked ? diffCount : 0), 'result')}`; });
-          af.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-              const res = await submitting(btn, () => api('admin.fetchresults', { method: 'POST', body: { fix_differing: af.fix && af.fix.checked ? 1 : 0 } }));
-              toast(`Saved ${plural(res.saved, 'result')}. Table updated.`);
-              adminResults();
-            } catch (err) { formError(af, err.message); }
-          });
-        }
-      } catch (err) { pv.innerHTML = `<p class="error">${esc(err.message)}</p>`; }
-    });
   }
 
   async function adminPlayers() {
@@ -2313,7 +2246,7 @@
     fixtures_import: 'Fixtures imported', result: 'Result', settings: 'Settings', player_add: 'Player added',
     player_admin: 'Admin rights', player_delete: 'Player deleted', recalculate: 'Recalculated', backup: 'Backup',
     restore: 'Restore', mail_test: 'Test email', mail_failed: 'Email failed',
-    bot_trap: 'Bot trap', bot_honeypot: 'Bot caught (hidden field)', bot_check_failed: 'Bot check failed', unblock: 'Block lifted', not_found: 'Missing pages', traplist: 'Trap URL list', pointadj: 'Points adjustment', security: '2-step log-in', security_failed: 'Wrong password (2-step settings)', results_failed: 'Fetching results failed',
+    bot_trap: 'Bot trap', bot_honeypot: 'Bot caught (hidden field)', bot_check_failed: 'Bot check failed', unblock: 'Block lifted', not_found: 'Missing pages', traplist: 'Trap URL list', pointadj: 'Points adjustment', security: '2-step log-in', security_failed: 'Wrong password (2-step settings)',
     auto_predict: 'Automatic predictions', competition: 'Competition', prefs: 'Preferences',
   };
 

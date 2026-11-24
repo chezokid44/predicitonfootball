@@ -388,6 +388,7 @@ function route_admin_results(): array {
   foreach ($items as $item) {
     $m = get_match((int)($item['id'] ?? 0));
     $label = clean_text($m['hometeam']) . ' v ' . clean_text($m['awayteam']);
+    refuse_if_fulltime($m);
     if (is_p_score($item['home'] ?? null) || is_p_score($item['away'] ?? null)) {
       $clean[] = [(int)$m['matchid'], 'P', 'P', $label, $m];
       continue;
@@ -696,6 +697,7 @@ function route_admin_export(): array {
   $tables['league_competitions'] = q('SELECT leagueid, compid FROM ' . xt('leaguecomps') . $inLid, [lid()])->fetchAll();
   $tables['league_members'] = q('SELECT leagueid, userid, role, joined FROM ' . xt('members') . $inLid, [lid()])->fetchAll();
   $tables['postponed'] = with_table('postponed', fn() => q('SELECT matchid, reason, created FROM ' . xt('postponed') . ' WHERE lid = ?', [lid()])->fetchAll());
+  $tables['full_time'] = with_table('fulltime', fn() => q('SELECT matchid, username, created FROM ' . xt('fulltime') . ' WHERE lid = ?', [lid()])->fetchAll());
   $tables['point_adjustments'] = with_table('pointadj', fn() => q('SELECT compid, seasonid, team, points, reason, created FROM ' . xt('pointadj') . ' WHERE lid = ? ORDER BY id', [lid()])->fetchAll());
   $tables['seasons'] = with_table('seasons', fn() => q('SELECT seasonid, name, start_date, end_date, is_current FROM ' . xt('seasons') . ' WHERE lid = ?', [lid()])->fetchAll());
   $tables['teams'] = with_table('teams', fn() => q('SELECT teamid, name, short_name, badge FROM ' . xt('teams') . ' WHERE lid = ?', [lid()])->fetchAll());
@@ -790,6 +792,7 @@ function route_admin_restore(): array {
     if (!isset($r['teamid'], $r['name'])) continue;
     $teamRows[] = [(int)$r['teamid'], mb_substr((string)$r['name'], 0, 30), mb_substr((string)($r['short_name'] ?? ''), 0, 5), badge_url($r['badge'] ?? null)];
   }
+  $ftRows = array_values(array_filter(array_map(fn($r) => [(int)($r['matchid'] ?? 0), mb_substr((string)($r['username'] ?? ''), 0, 32), (string)($r['created'] ?? now_str())], $bt('full_time')), fn($r) => $r[0] > 0));
   $ppRows = array_values(array_filter(array_map(fn($r) => [(int)($r['matchid'] ?? 0), mb_substr((string)($r['reason'] ?? ''), 0, 80), (string)($r['created'] ?? now_str())], $bt('postponed')), fn($r) => $r[0] > 0));
   $adjRows = array_values(array_filter(array_map(fn($r) => [(int)($r['compid'] ?? 0), (int)($r['seasonid'] ?? 0), mb_substr(trim((string)($r['team'] ?? '')), 0, 60),
     max(-999, min(999, (int)($r['points'] ?? 0))), mb_substr((string)($r['reason'] ?? ''), 0, 100), (string)($r['created'] ?? now_str())], $bt('point_adjustments')),
@@ -800,7 +803,7 @@ function route_admin_restore(): array {
   // Create the tables before the transaction: MySQL commits implicitly on CREATE TABLE.
   ensure_league_tables();
   with_table('pages', fn() => q('SELECT 1 FROM ' . xt('pages') . ' WHERE 1 = 0'));
-  foreach (['seasons', 'teams', 'compteams', 'postponed', 'pointadj'] as $tb) with_table($tb, fn() => q('SELECT 1 FROM ' . xt($tb) . ' WHERE 1 = 0'));
+  foreach (['seasons', 'teams', 'compteams', 'postponed', 'pointadj', 'fulltime'] as $tb) with_table($tb, fn() => q('SELECT 1 FROM ' . xt($tb) . ' WHERE 1 = 0'));
   with_table('menu', fn() => q('SELECT 1 FROM ' . xt('menu') . ' WHERE 1 = 0'));
   with_table('prefs', fn() => q('SELECT COUNT(*) FROM ' . xt('prefs')));
   ensure_prefs_columns();
@@ -836,6 +839,8 @@ function route_admin_restore(): array {
     q('DELETE FROM ' . xt('seasons') . ' WHERE lid = ?', [lid()]);
     q('DELETE FROM ' . xt('postponed') . ' WHERE lid = ?', [lid()]);
     foreach ($ppRows as $r) q('INSERT INTO ' . xt('postponed') . ' (lid, matchid, reason, created) VALUES (?, ?, ?, ?)', [lid(), ...$r]);
+    q('DELETE FROM ' . xt('fulltime') . ' WHERE lid = ?', [lid()]);
+    foreach ($ftRows as $r) q('INSERT INTO ' . xt('fulltime') . ' (lid, matchid, username, created) VALUES (?, ?, ?, ?)', [lid(), ...$r]);
     q('DELETE FROM ' . xt('pointadj') . ' WHERE lid = ?', [lid()]);
     foreach ($adjRows as $r) q('INSERT INTO ' . xt('pointadj') . ' (lid, compid, seasonid, team, points, reason, created) VALUES (?, ?, ?, ?, ?, ?, ?)', [lid(), ...$r]);
     q('DELETE FROM ' . xt('teams') . ' WHERE lid = ?', [lid()]);
@@ -1124,7 +1129,14 @@ function route_admin_importfixtures(): array {
         $mComp = $cmap[(int)$m['matchid']] ?? null;
         if (substr((string)$m['matchdate'], 0, 16) === $kickoff || ($mComp === $cid && $sameSeason((string)$m['matchdate'], $when))) { $match = $m; break; }
       }
-      if ($match) {
+      if ($match && is_fulltime((int)$match['matchid'])) {
+        // Marked FT on the site: nothing in the file changes it.
+        $claimed[(int)$match['matchid']] = true;
+        $row['id'] = (int)$match['matchid'];
+        $row['status'] = 'same';
+        $row['postpone'] = false;
+        $row['note'] .= 'Marked FT on the site, so it\'s left as it is. ';
+      } elseif ($match) {
         $claimed[(int)$match['matchid']] = true;
         $row['id'] = (int)$match['matchid'];
         if (substr((string)$match['matchdate'], 0, 16) !== $kickoff) $row['changes'][] = 'kick-off moved from ' . date('D j M H:i', strtotime((string)$match['matchdate']));
