@@ -820,3 +820,209 @@ pre.codes { font-size: 1.1rem; line-height: 1.6; background: #fff; padding: 8px 
 .ft-tag { display: inline-block; background: #1d7a3a; color: #fff; font-weight: 700; font-size: 0.8rem; padding: 2px 8px; border-radius: 3px; letter-spacing: 0.04em; }
 .ft-row .box:disabled { background: var(--surface); color: var(--ink, #1C2B4A); opacity: 1; cursor: not-allowed; border-style: dashed; }
 .ft-btn { font-weight: 700; }
+
+/* =====================================================================
+   Phones and tablets
+   ===================================================================== */
+
+.nav-icon { width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.nav .nav-icon { display: none; }
+.head-account { display: none; }
+.tabbar, .nav-backdrop { display: none; }
+.tabs { position: relative; }
+.tabs a { white-space: nowrap; }
+
+/* Taps: no double-tap zoom delay, and no grey flash on iOS. */
+a, button, .btn, summary, label, input, select, textarea { touch-action: manipulation; }
+html { -webkit-tap-highlight-color: transparent; }
+
+/* Hover colours only where there's a mouse (they stick after a tap otherwise). */
+@media (hover: none) {
+  .btn:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .btn.quiet:hover { background: transparent; color: var(--ink); border-color: var(--ink); }
+  .btn.danger:hover { background: transparent; color: var(--coupon); border-color: var(--coupon); }
+  .btn.danger.armed { background: var(--coupon); color: #fff; }
+  a:hover { color: inherit; }
+}
+
+/* Touch screens (phones and tablets): bigger targets. */
+@media (pointer: coarse) {
+  .btn { min-height: 44px; }
+  .btn.small { min-height: 40px; padding: 8px 12px; }
+  .check input, input[type=checkbox]:not(.visually-hidden), input[type=radio]:not(.visually-hidden) { width: 1.4rem; height: 1.4rem; }
+  .segmented input { width: 1px; height: 1px; }
+  .check { align-items: center; }
+  .check input { margin-top: 0; }
+  summary { padding: 8px 0; }
+  .fixture .status a, .mr-match, .league td a, .who, .tabs a, .foot a, .msg-row a { min-height: 40px; }
+  .fixture .status a { display: inline-block; padding: 8px 0; line-height: 1.3; }
+  .league td a, .who { display: inline-flex; align-items: center; }
+  .foot a { display: inline-flex; align-items: center; }
+  .box { width: 2.9rem; height: 2.9rem; }
+  input[type=text]:not(.box), input[type=search], input[type=email], input[type=password], input[type=url],
+  input[type=number]:not(.box), input[type=datetime-local], input[type=date], select { min-height: 44px; font-size: max(16px, 1em); }
+  textarea { font-size: max(16px, 1em); }
+  .segmented span { padding: 12px 16px; }
+}
+
+/* Long tab strips (admin, competitions, messages) scroll sideways instead of wrapping onto several lines. */
+@media (max-width: 760px) {
+  .tabs {
+    flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; gap: 0 18px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    margin-left: -16px; margin-right: -16px; padding: 0 16px;
+    mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%);
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs a { flex: none; }
+  .table-switch a.more { margin-left: 12px; }
+}
+
+/* Phones */
+@media (max-width: 720px) {
+  :root { --tabbar-h: calc(58px + env(safe-area-inset-bottom)); }
+  body { padding-bottom: var(--tabbar-h); }
+
+  /* Slim header: league name and your picture; the menu lives in the bottom bar. */
+  .masthead { position: sticky; top: 0; z-index: 15; border-bottom-width: 3px; }
+  .masthead-inner { flex-wrap: nowrap; align-items: center; padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); gap: 12px; }
+  .brand { font-size: 1.55rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .head-account { display: block; flex: none; }
+  .head-account a { display: inline-flex; padding: 6px; margin: -6px; }
+  .head-account .avatar.xs { width: 2rem; height: 2rem; font-size: 0.9rem; margin: 0; }
+
+  /* The full menu: a sheet that slides up above the bottom bar. */
+  .nav {
+    position: fixed; left: 0; right: 0; bottom: var(--tabbar-h); z-index: 30;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    max-height: calc(100vh - var(--tabbar-h) - 70px); max-height: calc(100dvh - var(--tabbar-h) - 70px); overflow-y: auto;
+    background: var(--paper); border-top: 3px solid var(--coupon);
+    padding: 8px max(8px, env(safe-area-inset-right)) 12px max(8px, env(safe-area-inset-left));
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.18);
+    transform: translateY(calc(100% + var(--tabbar-h) + 10px)); visibility: hidden;
+    transition: transform 0.2s ease-out, visibility 0s linear 0.2s;
+  }
+  body.nav-open .nav { transform: none; visibility: visible; transition: transform 0.2s ease-out; }
+  .nav a, .nav .nav-account {
+    display: flex; align-items: center; gap: 10px; margin: 0;
+    padding: 12px 10px; min-height: 52px; border-bottom: 1px solid var(--rule);
+    font: 600 1.2rem/1.2 var(--display); color: var(--ink);
+  }
+  .nav a[aria-current="page"] { border-bottom-color: var(--rule); background: var(--surface); box-shadow: inset 4px 0 0 var(--coupon); }
+  .nav .nav-icon { display: block; color: var(--ink-soft); }
+  .nav .avatar.xs { width: 22px; height: 22px; margin: 0; }
+  .nav .nav-account { grid-column: 1 / -1; }
+  .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 14; background: rgba(10, 16, 30, 0.35); }
+  .nav-backdrop[hidden] { display: none; }
+
+  /* The bottom bar */
+  .tabbar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
+    height: var(--tabbar-h); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    background: var(--paper); border-top: 1.5px solid var(--rule);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.06);
+  }
+  .tabbar a, .tabbar button {
+    flex: 1 1 0; min-width: 0; position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    font: 600 0.82rem/1 var(--display); letter-spacing: 0.02em; color: var(--ink-soft); text-decoration: none;
+    background: none; border: 0; border-top: 3px solid transparent; padding: 4px 2px 0; cursor: pointer;
+  }
+  .tabbar a span:not(.badge):not(.n):not(.visually-hidden), .tabbar button > span:not(.badge) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tabbar [aria-current="page"], .tabbar .current, .tabbar button[aria-expanded="true"] { color: var(--ink); border-top-color: var(--coupon); }
+  .tabbar .badge { position: absolute; top: 4px; left: calc(50% + 6px); margin: 0; font-size: 0.72rem; }
+  .tabbar .nav-icon { width: 24px; height: 24px; }
+
+  /* Messages, the save bar and the "unsaved" bar sit above the bottom bar. */
+  .toast { top: auto; bottom: calc(var(--tabbar-h) + 12px); }
+  body:has(.savebar) .toast { bottom: calc(var(--tabbar-h) + 76px); }
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes toast-in { from { transform: translate(-50%, 8px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+  }
+  /* Save bars stay on screen, just above the bottom bar. */
+  .savebar {
+    position: fixed; left: 0; right: 0; bottom: var(--tabbar-h); z-index: 20; margin: 0;
+    flex-wrap: nowrap; gap: 6px 12px;
+    padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+  }
+  .savebar .btn { flex: none; padding: 10px 14px; font-size: 1.05rem; }
+  .savebar .msg {
+    flex: 1 1 auto; min-width: 0; margin: 0; padding: 0; border: 0; background: none;
+    font-size: 0.88rem; line-height: 1.25;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .savebar:has(.btn + .btn) { flex-wrap: wrap; }
+  .savebar:has(.btn + .btn) .btn { flex: 1 1 auto; }
+  .savebar:has(.btn + .btn) .msg { display: none; }
+  main:has(.savebar) { padding-bottom: 130px; }
+
+  .page { padding: 18px max(16px, env(safe-area-inset-right)) 40px max(16px, env(safe-area-inset-left)); }
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.45rem; margin-top: 26px; }
+  .foot-inner { padding-bottom: 20px; }
+
+  /* Filters: two to a row, full width. */
+  .fixture-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  .fixture-tools select { min-width: 0; }
+  .fixture-tools .segmented { grid-column: 1 / -1; min-width: 0; }
+  .title-row .season-pick { margin-left: 0; }
+  .log-filter label { min-width: 0; flex: 1 1 10rem; }
+  .inline-form label:not(.check) { min-width: 0; flex: 1 1 12rem; }
+  .join-form label { flex: 1; width: auto; }
+
+  /* Next match strip */
+  .next-match { gap: 8px 10px; padding: 12px 0 14px; }
+  .next-match { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .next-match .team { font-size: 1.25rem; overflow-wrap: break-word; hyphens: auto; }
+  .next-match .when { max-width: 7.5rem; }
+  .next-match .when { font-size: 0.95rem; padding: 5px 8px; }
+
+  /* Fixture rows: a little more room for long team names. */
+  .fixture { column-gap: 8px; }
+  .fixture .team { font-size: 1rem; line-height: 1.2; }
+  .fixture .crest { width: 20px; height: 20px; }
+  .team.home .crest { margin-left: 5px; }
+  .team.away .crest { margin-right: 5px; }
+
+  /* Tables */
+  .league th, .league td { padding: 9px 6px; }
+  .table-wrap { margin-left: -16px; margin-right: -16px; padding: 0 16px; }
+
+  /* Admin lists: actions under the name. */
+  .admin-item .actions { width: 100%; }
+  .admin-item .actions .btn { flex: 1 1 auto; }
+  .grid-row { grid-template-columns: 1fr 1fr; }
+  input[type=file]:not(.visually-hidden) { width: 100%; max-width: 100%; min-width: 0; }
+  form.stack, form.stack > *, label { min-width: 0; }
+  .file-btn, .file-btn input { max-width: 100%; }
+  .editor-tools select { flex: 1 1 100%; }
+  .pick-grid { grid-template-columns: 1fr; max-height: 22rem; }
+  .msg-row a { padding-left: 6px; }
+}
+
+/* Small phones (iPhone SE and narrower) */
+@media (max-width: 380px) {
+  .brand { font-size: 1.35rem; }
+  .fixture .team { font-size: 0.95rem; }
+  .box { width: 2.55rem; height: 2.55rem; font-size: 1.4rem; }
+  .score { gap: 4px; }
+  .tabbar a, .tabbar button { font-size: 0.75rem; }
+  .league .wide2 { display: none; }
+}
+
+/* Tablets: comfortable two-column admin forms, roomier rows. */
+@media (min-width: 721px) and (max-width: 1100px) {
+  .page { padding-left: 24px; padding-right: 24px; }
+  .masthead-inner { padding-left: 24px; padding-right: 24px; }
+  /* League name on its own line, the menu in one row underneath. */
+  .nav { flex-basis: 100%; gap: 2px 20px; }
+  .nav a { min-height: 40px; display: inline-flex; align-items: center; }
+}
+
+/* Installed as an app (added to the home screen): no browser bar, so leave room at the top. */
+@media (display-mode: standalone) and (max-width: 720px) {
+  .masthead-inner { padding-top: max(12px, env(safe-area-inset-top)); }
+}
+/* Buttons in a fixture row's status cell (admin results): wrap with a gap, never overlap. */
+.fixture .status:has(.btn) { display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: center; gap: 6px; }

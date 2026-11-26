@@ -305,8 +305,7 @@
       const { unread } = await api('messages.count');
       if (unread !== state.unread) {
         state.unread = unread;
-        const badge = document.getElementById('unread-badge');
-        if (badge) { badge.textContent = unread; badge.hidden = !unread; }
+        document.querySelectorAll('.unread-badge').forEach((b) => { b.querySelector('.n').textContent = unread; b.hidden = !unread; });
       }
     } catch (e) { /* not important enough to show */ }
   }
@@ -319,6 +318,11 @@
 
   function setPage(html) {
     main.innerHTML = html;
+    // Tab strips scroll sideways on phones: keep the current tab in view.
+    main.querySelectorAll('.tabs [aria-current="page"]').forEach((a) => {
+      const strip = a.parentElement;
+      if (strip.scrollWidth > strip.clientWidth) strip.scrollLeft = a.offsetLeft - (strip.clientWidth - a.offsetWidth) / 2;
+    });
   }
   function errorPage(err) {
     if (err.code === 'needs_two_step') { needTwoStepPage(); return; }
@@ -396,15 +400,59 @@
       links.push([m.key, builtin[m.key], m.label]);
     }
     if (state.user && state.user.is_admin) links.push(['admin', '#/admin', 'Admin']);
+    const badge = () => `<span class="badge unread-badge"${state.unread ? '' : ' hidden'}><span class="visually-hidden">unread: </span><span class="n">${state.unread}</span></span>`;
     let html = links.map(([key, href, label]) =>
-      `<a href="${href}"${active === key ? ' aria-current="page"' : ''}>${label}${key === 'messages'
-        ? ` <span class="badge" id="unread-badge"${state.unread ? '' : ' hidden'}><span class="visually-hidden">unread: </span>${state.unread}</span>` : ''}</a>`).join('');
-    if (state.user) {
-      html += `<a class="nav-account" href="#/account"${active === 'account' ? ' aria-current="page"' : ''}>${avatar(state.user, 'xs')}${esc(state.user.username)}</a>`;
-    } else {
-      html += `<a class="nav-account" href="#/login"${active === 'login' ? ' aria-current="page"' : ''}>Log in</a>`;
-    }
+      `<a href="${href}"${active === key ? ' aria-current="page"' : ''}>${navIcon(key)}<span class="nav-label">${label}</span>${key === 'messages' ? ' ' + badge() : ''}</a>`).join('');
+    const account = state.user ? ['account', '#/account', esc(state.user.username)] : ['login', '#/login', 'Log in'];
+    html += `<a class="nav-account" href="${account[1]}"${active === account[0] ? ' aria-current="page"' : ''}>${state.user ? avatar(state.user, 'xs') : navIcon('login')}<span class="nav-label">${account[2]}</span></a>`;
     document.getElementById('nav').innerHTML = html;
+    document.getElementById('head-account').innerHTML = state.user
+      ? `<a href="#/account" aria-label="Your account">${avatar(state.user, 'xs')}</a>` : '';
+
+    // Phones: up to 4 quick links along the bottom, chosen in this order, then More.
+    const order = ['predictions', 'results', 'table', 'home', 'messages', 'standings', 'leagues'];
+    let quick = order.map((k) => links.find((l) => l[0] === k)).filter(Boolean);
+    for (const l of links) if (!quick.includes(l) && l[0] !== 'admin') quick.push(l);
+    if (!state.user) quick = quick.slice(0, 3).concat([account]);
+    quick = quick.slice(0, 4);
+    const inMore = active && !quick.some((l) => l[0] === active);
+    document.getElementById('tabbar').innerHTML = quick.map(([key, href, label]) =>
+      `<a href="${href}"${active === key ? ' aria-current="page"' : ''}>${navIcon(key)}<span>${shortLabel(key, label)}</span>${key === 'messages' ? badge() : ''}</a>`).join('')
+      + `<button type="button" id="more-btn" aria-expanded="${document.body.classList.contains('nav-open')}" aria-controls="nav"${inMore ? ' class="current"' : ''}>${navIcon('more')}<span>More</span>${
+        quick.some((l) => l[0] === 'messages') ? '' : badge()}</button>`;
+    document.getElementById('more-btn').addEventListener('click', () => setMenu(!document.body.classList.contains('nav-open')));
+  }
+
+  // Short labels for the bottom bar.
+  function shortLabel(key, label) {
+    return { predictions: 'Predict', standings: 'Tables', table: 'Table', results: 'Results', messages: 'Messages', leagues: 'Leagues', login: 'Log in' }[key] || label;
+  }
+
+  function setMenu(open) {
+    document.body.classList.toggle('nav-open', open);
+    document.getElementById('nav-backdrop').hidden = !open;
+    const b = document.getElementById('more-btn');
+    if (b) b.setAttribute('aria-expanded', String(open));
+    if (open) { const first = document.querySelector('#nav a'); if (first) first.focus({ preventScroll: true }); }
+  }
+
+  const ICONS = {
+    table: 'M4 6h16M4 12h16M4 18h16M8 4v16',
+    home: 'M4 11l8-7 8 7M6 9.5V20h12V9.5',
+    predictions: 'M4 20l1-4L16 5l3 3L8 19zM14 7l3 3',
+    results: 'M5 5h14v15H5zM5 10h14M9 3v4M15 3v4M9 14l2 2 4-4',
+    standings: 'M4 20v-7h5v7M9 20V6h6v14M15 20v-10h5v10M3 20h18',
+    leagues: 'M8.5 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20c0-3.3 2.5-5.5 5.5-5.5S14 16.7 14 20M15.5 5.2a3 3 0 0 1 0 5.6M17 14.8c2.4.6 4 2.5 4 5.2',
+    messages: 'M3 6h18v12H3zM3 6l9 7 9-7',
+    help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01',
+    admin: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
+    login: 'M10 17l5-5-5-5M15 12H3M14 4h6v16h-6',
+    page: 'M6 3h9l4 4v14H6zM14 3v5h5',
+    more: 'M4 7h16M4 12h16M4 17h16',
+  };
+  function navIcon(key) {
+    const d = ICONS[key] || (String(key).startsWith('page:') ? ICONS.page : ICONS.page);
+    return `<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${d}"/></svg>`;
   }
 
   function renderFoot() {
@@ -3849,7 +3897,13 @@
     try { localStorage.setItem('pl.season', e.target.value); } catch (err) { /* storage unavailable */ }
     route();
   });
+  document.getElementById('nav-backdrop').addEventListener('click', () => setMenu(false));
+  document.getElementById('nav').addEventListener('click', (e) => { if (e.target.closest('a')) setMenu(false); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('nav-open')) { setMenu(false); document.getElementById('more-btn')?.focus(); }
+  });
   window.addEventListener('hashchange', () => {
+    setMenu(false);
     const page = (location.hash || '#/').split('/')[1] || '';
     if (page !== lastPage) {
       window.scrollTo(0, 0);

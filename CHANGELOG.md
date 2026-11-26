@@ -5,6 +5,23 @@ Tags page). Versions 1.x are the original PHP script; 2.x is the rewrite with
 an HTML/JavaScript front end and a PHP + MySQL API, which still uses the
 original database tables.
 
+## v2.12.0 (26 November 2026)
+
+**Mobile and tablet ready:**
+- Phones: slim header (league name and your picture) and a bottom bar with
+  Predict, Results, Table, Messages and More (the full menu as a sheet).
+- Save bars (predictions, results, settings, pages) stay on screen above the
+  bottom bar; messages pop up above it too.
+- Admin, competition and message tabs scroll sideways in one line, keeping
+  the current tab in view. Filters two to a row. No sideways page scrolling
+  (fixed on Admin > Data).
+- Touch screens: 40-44px buttons, bigger score boxes and checkboxes, 16px
+  form text (no iPhone zoom), no double-tap delay, no sticky hover colours,
+  safe areas for the notch and home bar.
+- Tablets: league name on one line, the menu in one row.
+- Add to Home Screen: `manifest.php`, `assets/icons/`, `apple-touch-icon.png`,
+  theme colours for light and dark mode.
+
 ## v2.11.1 (24 November 2026)
 
 - Fixed: **Mark N saved results FT** failed with "Choose the results to

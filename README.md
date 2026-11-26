@@ -141,6 +141,22 @@ settings carry over.
   date rearranges the match.
 - A web installer for new servers
 
+## Phones and tablets
+
+- Phones (up to 720px wide): a slim header with the league name and your
+  picture, and a bar along the bottom with Predict, Results, Table and
+  Messages (or the first links of your menu) plus **More**, which opens the
+  full menu. Save buttons stay on screen just above the bar.
+- Tab strips (Admin, competition tables, messages) scroll sideways in one
+  line, with the current tab in view. Filters sit two to a row.
+- Bigger tap targets on touch screens (buttons, score boxes, checkboxes,
+  links), 16px text in form fields so iPhones don't zoom in, no double-tap
+  delay, and room for the notch and home bar.
+- Tablets: the league name on one line, the menu in one row below it.
+- Add to Home Screen: `manifest.php` (named after your league) and the icons
+  in `assets/icons/` let phones install the site like an app, opening without
+  the browser bars.
+
 ## Files
 
 ```
@@ -165,6 +181,8 @@ api/twostep.php          2-step log-in: authenticator apps, passkeys,
                          security keys, recovery codes
 assets/qrcode.js         QR codes for setting up authenticator apps (MIT,
                          Kazuhiko Arase)
+manifest.php             web app manifest (Add to Home Screen)
+apple-touch-icon.png, assets/icons/   home-screen icons
 notfound.php             answers addresses that don't exist (404) and counts
                          them towards blocking (see Security)
 .htaccess                Apache: sends missing pages to notfound.php

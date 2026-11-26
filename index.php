@@ -30,7 +30,15 @@ header('Referrer-Policy: same-origin');
 <html lang="en-GB">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#E9EFE4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131C2E" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Predictions">
+  <link rel="manifest" href="manifest.php">
+  <link rel="apple-touch-icon" href="<?= $asset('assets/icons/apple-touch-icon.png') ?>">
   <title>Prediction League</title>
   <meta name="description" content="Predict the scores, climb the table.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -46,6 +54,7 @@ header('Referrer-Policy: same-origin');
   <header class="masthead">
     <div class="masthead-inner">
       <a class="brand" href="#/" id="brand">Prediction League</a>
+      <span class="head-account" id="head-account"></span>
       <nav class="nav" id="nav" aria-label="Main"></nav>
     </div>
   </header>
@@ -55,6 +64,10 @@ header('Referrer-Policy: same-origin');
   </main>
 
   <footer class="foot" id="foot"></footer>
+
+  <!-- Phones: quick links along the bottom; "More" opens the full menu. -->
+  <nav class="tabbar" id="tabbar" aria-label="Quick links"></nav>
+  <div class="nav-backdrop" id="nav-backdrop" hidden></div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
